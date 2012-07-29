@@ -1,3 +1,8 @@
+/*
+ *  backbone-dynamodb 0.0.1
+ *  (c) 2012 Sergio Alcantara
+ */
+
 var _ = require('underscore'),
 	uuid = require('node-uuid'),
 	DynDB = require('dyndb'),
