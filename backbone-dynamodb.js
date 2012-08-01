@@ -1,5 +1,5 @@
 /*
- *  backbone-dynamodb 0.0.1
+ *  backbone-dynamodb 0.0.2
  *  (c) 2012 Sergio Alcantara
  */
 
@@ -52,8 +52,8 @@ function putItem(model, options) {
 	};
 	var changed = {};
 	if (!model.id) {
-		changed[_.result(model, 'idAttribute')] = uuid();
-		model.set(changed);
+		var idAttr = _.result(model, 'idAttribute');
+		body.Item[idAttr] = encodeAttribute(changed[idAttr] = uuid());
 	}
 	_.each(model.toJSON().model, function(v, key) {
 		body.Item[key] = encodeAttribute(v);
@@ -61,8 +61,8 @@ function putItem(model, options) {
 
 	_.extend(body, options.dynamodb);
 	dyndb.request('PutItem', body, function(e, jsonResponse, httpResponse) {
-		if (e && _.isFunction(options.error)) options.error(model, {code: 'DBError', dbError: e});
-		else if (!e && _.isFunction(options.success)) options.success({model: changed});
+		if (e) options.error(model, {code: 'DBError', dbError: e});
+		else options.success({model: changed});
 
 		if (_.isFunction(options.complete)) options.complete(model);
 	});
@@ -80,16 +80,16 @@ function getItem(model, options) {
 
 	_.extend(body, options.dynamodb);
 	dyndb.request('GetItem', body, function(e, jsonResponse, httpResponse) {
-		if (e && _.isFunction(options.error)) options.error(model, {code: 'DBError', dbError: e});
-		else if (!e) {
+		if (e) options.error(model, {code: 'DBError', dbError: e});
+		else {
 			if (!jsonResponse.Item || _.isEmpty(jsonResponse.Item)) options.error(model, {code: 'NotFound'});
 			else {
 				var json = {};
 				_.each(jsonResponse.Item, function(attr, key) {
 					json[key] = decodeAttribute(attr);
 				});
-				if (_.isFunction(options.success)) options.success({model: json});
-				else model.set(json, {silent: true});
+
+				options.success({model: json});
 			}
 		}
 
@@ -109,8 +109,8 @@ function deleteItem(model, options) {
 
 	_.extend(body, options.dynamodb);
 	dyndb.request('DeleteItem', body, function(e, jsonResponse, httpResponse) {
-		if (e && _.isFunction(options.error)) options.error(model, {code: 'DBError', dbError: e});
-		else if (!e && _.isFunction(options.success)) options.success(jsonResponse);
+		if (e) options.error(model, {code: 'DBError', dbError: e});
+		else options.success(jsonResponse);
 
 		if (_.isFunction(options.complete)) options.complete(model);
 	});
@@ -120,18 +120,17 @@ function fetchCollection(collection, options) {
 	var body = _.extend({TableName: collection._tableName()}, options.query || options.scan, options.dynamodb);
 
 	dyndb.request(options.query ? 'Query' : 'Scan', body, function(e, jsonResponse, httpResponse) {
-		if (e && _.isFunction(options.error)) options.error(collection, {code: 'DBError', dbError: e});
-		else if (!e) {
-			var collection = _.map(jsonResponse.Items, function(it) {
-				var model = {};
-				_.each(it, function(attr, key) {
-					model[key] = decodeAttribute(attr);
-				});
-				return {model: model};
+		if (e) options.error(collection, {code: 'DBError', dbError: e});
+		else {
+			options.success({
+				collection: _.map(jsonResponse.Items, function(it) {
+					var model = {};
+					_.each(it, function(attr, key) {
+						model[key] = decodeAttribute(attr);
+					});
+					return {model: model};
+				})
 			});
-
-			if (_.isFunction(options.success)) options.success({collection: collection});
-			else collection.set(collection, {silent: true});
 		}
 
 		if (_.isFunction(options.complete)) options.complete(collection);
