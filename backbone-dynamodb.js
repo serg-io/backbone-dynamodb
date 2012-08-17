@@ -11,6 +11,12 @@ var _ = require('underscore'),
 var dyndb = new DynDB();
 Backbone.DynamoDB.setup = dyndb.setup;
 
+function isJSONString(str) {
+	// TODO: Improve to make sure that it is a valid JSON string (use RegExp?)
+	var f = str.charAt(0), l = str.charAt(str.length - 1);
+	return (f === '{' && l === '}') || (f === '[' && l === ']') || str === 'null';
+}
+
 var encodeAttribute = exports.encodeAttribute = function(v) {
 	if (_.isArray(v)) {
 		var type = 'N', set = _.map(v, function(i) {
@@ -23,7 +29,7 @@ var encodeAttribute = exports.encodeAttribute = function(v) {
 	else if (_.isBoolean(v)) return {S: v.toString()};
 	else if (_.isDate(v)) return {S: v.toISOString()};
 	else if (_.isString(v)) return {S: v};
-	else return {S: JSON.stringify(v)};
+	return {S: JSON.stringify(v)};
 };
 
 var decodeAttribute = exports.decodeAttribute = function(attr) {
@@ -35,13 +41,13 @@ var decodeAttribute = exports.decodeAttribute = function(attr) {
 			return decodeAttribute(_attr);
 		});
 	}
-	if (attr.N) return /\./.test(attr.N) ? parseFloat(attr.N) : parseInt(attr.N);
+	if (attr.N) return attr.N.indexOf('.') !== -1 ? parseFloat(attr.N) : parseInt(attr.N);
 
 	var v = attr.S;
 	if (/^true|false$/.test(v)) return v === 'true';
 	else if (/^\d{4}(-\d{2}){2}T\d{2}(:\d{2}){2}\.\d{3}Z$/.test(v)) return new Date(v);
-	else if (v.charAt(0) !== '{' && v.charAt(v.length - 1) !== '}' && v !== 'null') return v;
-	else return JSON.parse(v);
+	else if (!isJSONString(v)) return v;
+	return JSON.parse(v);
 };
 
 function putItem(model, options) {
@@ -62,9 +68,9 @@ function putItem(model, options) {
 	_.extend(body, options.dynamodb);
 	dyndb.request('PutItem', body, function(e, jsonResponse, httpResponse) {
 		if (e) options.error(model, {code: 'DBError', dbError: e});
-		else options.success({model: changed});
+		else options.success({model: changed, dynamodb: jsonResponse});
 
-		if (_.isFunction(options.complete)) options.complete(model);
+		if (_.isFunction(options.complete)) options.complete(model, {dynamodb: jsonResponse});
 	});
 }
 
@@ -89,11 +95,11 @@ function getItem(model, options) {
 					json[key] = decodeAttribute(attr);
 				});
 
-				options.success({model: json});
+				options.success({model: json, dynamodb: jsonResponse});
 			}
 		}
 
-		if (_.isFunction(options.complete)) options.complete(model);
+		if (_.isFunction(options.complete)) options.complete(model, {dynamodb: jsonResponse});
 	});
 }
 
@@ -110,9 +116,9 @@ function deleteItem(model, options) {
 	_.extend(body, options.dynamodb);
 	dyndb.request('DeleteItem', body, function(e, jsonResponse, httpResponse) {
 		if (e) options.error(model, {code: 'DBError', dbError: e});
-		else options.success(jsonResponse);
+		else options.success({dynamodb: jsonResponse});
 
-		if (_.isFunction(options.complete)) options.complete(model);
+		if (_.isFunction(options.complete)) options.complete(model, {dynamodb: jsonResponse});
 	});
 }
 
@@ -129,13 +135,13 @@ function fetchCollection(collection, options) {
 						model[key] = decodeAttribute(attr);
 					});
 					return {model: model};
-				})
+				}),
+				dynamodb: jsonResponse
 			});
 		}
 
-		if (_.isFunction(options.complete)) options.complete(collection);
+		if (_.isFunction(options.complete)) options.complete(collection, {dynamodb: jsonResponse});
 	});
-
 }
 
 Backbone.sync = function(method, instance, options) {

@@ -46,10 +46,8 @@ define(['underscore', 'backbone'], function(_, Backbone) {
 			};
 		},
 		parse: function(obj) {
-			return _.map(obj.collection, function(m) {
-				for (var k in m) if (isISODate.test(m[k])) m[k] = new Date(m[k]);
-				return m;
-			});
+			// Backbone passes each object in the collection through model.parse when instantiating the Models
+			return obj.collection;
 		}
 	});
 
