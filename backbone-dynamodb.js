@@ -1,6 +1,9 @@
-/*
- *  backbone-dynamodb 0.0.2
- *  (c) 2012 Sergio Alcantara
+/**
+backbone-dynamodb 0.0.3 - (c) 2012 Sergio Alcantara
+Server side (Node.js) `Backbone.sync()` DynamoDB implementation
+
+@module DynamoDB
+@author Sergio Alcantara
  */
 
 var _ = require('underscore'),
@@ -9,6 +12,18 @@ var _ = require('underscore'),
 	Backbone = require('./backbone-dynamodb-shared');
 
 var dyndb = new DynDB();
+
+/**
+Sets the access keys and region to use for every request. If no arguments are passed,
+it gets the keys and region from the following environment variables:
+
+1. `AWS_ACCESS_KEY_ID`
+2. `AWS_SECRET_ACCESS_KEY`
+3. `AWS_REGION`
+
+@method setup
+@return {DynDB} The underlying DynDB instance
+ */
 Backbone.DynamoDB.setup = dyndb.setup;
 
 function isJSONString(str) {
@@ -45,7 +60,7 @@ var decodeAttribute = exports.decodeAttribute = function(attr) {
 
 	var v = attr.S;
 	if (/^true|false$/.test(v)) return v === 'true';
-	else if (/^\d{4}(-\d{2}){2}T\d{2}(:\d{2}){2}\.\d{3}Z$/.test(v)) return new Date(v);
+	else if (Backbone.DynamoDB.isISODate.test(v)) return new Date(v);
 	else if (!isJSONString(v)) return v;
 	return JSON.parse(v);
 };
@@ -57,20 +72,20 @@ function putItem(model, options) {
 		Item: {}
 	};
 	var changed = {};
-	if (!model.id) {
+	if (!model.isNew()) {
 		var idAttr = _.result(model, 'idAttribute');
 		body.Item[idAttr] = encodeAttribute(changed[idAttr] = uuid());
 	}
-	_.each(model.toJSON().model, function(v, key) {
+	_.each(model.attributes, function(v, key) {
 		body.Item[key] = encodeAttribute(v);
 	});
 
 	_.extend(body, options.dynamodb);
-	dyndb.request('PutItem', body, function(e, jsonResponse, httpResponse) {
+	dyndb.request('PutItem', body, function(e, json) {
 		if (e) options.error(model, {code: 'DBError', dbError: e});
-		else options.success({model: changed, dynamodb: jsonResponse});
+		else options.success({model: changed, dynamodb: json});
 
-		if (_.isFunction(options.complete)) options.complete(model, {dynamodb: jsonResponse});
+		if (_.isFunction(options.complete)) options.complete(model, {dynamodb: json});
 	});
 }
 
@@ -85,21 +100,21 @@ function getItem(model, options) {
 	if (model.rangeAttribute) body.Key.RangeKeyElement = encodeAttribute(model.get(model.rangeAttribute));
 
 	_.extend(body, options.dynamodb);
-	dyndb.request('GetItem', body, function(e, jsonResponse, httpResponse) {
+	dyndb.request('GetItem', body, function(e, json) {
 		if (e) options.error(model, {code: 'DBError', dbError: e});
 		else {
-			if (!jsonResponse.Item || _.isEmpty(jsonResponse.Item)) options.error(model, {code: 'NotFound'});
+			if (!json.Item || _.isEmpty(json.Item)) options.error(model, {code: 'NotFound'});
 			else {
-				var json = {};
-				_.each(jsonResponse.Item, function(attr, key) {
-					json[key] = decodeAttribute(attr);
+				var attrs = {};
+				_.each(json.Item, function(attr, key) {
+					attrs[key] = decodeAttribute(attr);
 				});
 
-				options.success({model: json, dynamodb: jsonResponse});
+				options.success({model: attrs, dynamodb: json});
 			}
 		}
 
-		if (_.isFunction(options.complete)) options.complete(model, {dynamodb: jsonResponse});
+		if (_.isFunction(options.complete)) options.complete(model, {dynamodb: json});
 	});
 }
 
@@ -114,33 +129,33 @@ function deleteItem(model, options) {
 	if (model.rangeAttribute) body.Key.RangeKeyElement = encodeAttribute(model.get(model.rangeAttribute));
 
 	_.extend(body, options.dynamodb);
-	dyndb.request('DeleteItem', body, function(e, jsonResponse, httpResponse) {
+	dyndb.request('DeleteItem', body, function(e, json) {
 		if (e) options.error(model, {code: 'DBError', dbError: e});
-		else options.success({dynamodb: jsonResponse});
+		else options.success({dynamodb: json});
 
-		if (_.isFunction(options.complete)) options.complete(model, {dynamodb: jsonResponse});
+		if (_.isFunction(options.complete)) options.complete(model, {dynamodb: json});
 	});
 }
 
 function fetchCollection(collection, options) {
 	var body = _.extend({TableName: collection._tableName()}, options.query || options.scan, options.dynamodb);
 
-	dyndb.request(options.query ? 'Query' : 'Scan', body, function(e, jsonResponse, httpResponse) {
+	dyndb.request(options.query ? 'Query' : 'Scan', body, function(e, json) {
 		if (e) options.error(collection, {code: 'DBError', dbError: e});
 		else {
 			options.success({
-				collection: _.map(jsonResponse.Items, function(it) {
+				collection: _.map(json.Items, function(it) {
 					var model = {};
 					_.each(it, function(attr, key) {
 						model[key] = decodeAttribute(attr);
 					});
 					return {model: model};
 				}),
-				dynamodb: jsonResponse
+				dynamodb: json
 			});
 		}
 
-		if (_.isFunction(options.complete)) options.complete(collection, {dynamodb: jsonResponse});
+		if (_.isFunction(options.complete)) options.complete(collection, {dynamodb: json});
 	});
 }
 

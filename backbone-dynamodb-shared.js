@@ -1,26 +1,66 @@
-if (typeof define !== 'function') {
-	var define = require('amdefine')(module);
+/**
+This module is inteded to contain functionality that can be shared between client and server side
+
+@module DynamoDB
+@submodule DynamoDB-Shared
+@author Sergio Alcantara
+ */
+
+if (typeof require === 'function') {
+	var _ = _ || require('underscore');
+	var Backbone = Backbone || require('backbone');
 }
 
-define(['underscore', 'backbone'], function(_, Backbone) {
-	function bindContext(options){
-		if (options && options.context) {
-			if (_.isFunction(options.error)) options.error = _.bind(options.error, options.context);
-			if (_.isFunction(options.success)) options.success = _.bind(options.success, options.context);
-		}
-		return options;
+function bindContext(options){
+	if (options && options.context) {
+		if (_.isFunction(options.error)) options.error = _.bind(options.error, options.context);
+		if (_.isFunction(options.success)) options.success = _.bind(options.success, options.context);
+		if (_.isFunction(options.complete)) options.complete = _.bind(options.complete, options.context);
 	}
+	return options;
+}
 
-	Backbone.DynamoDB = {};
-	var isISODate = Backbone.DynamoDB.isISODate = /^\d{4}(-\d{2}){2}T\d{2}(:\d{2}){2}\.\d{3}Z$/;
+var isISODate = /^\d{4}(-\d{2}){2}T\d{2}(:\d{2}){2}\.\d{3}Z$/;
 
-	Backbone.DynamoDB.Model = Backbone.Model.extend({
+Backbone.DynamoDB = {
+	isISODate: isISODate,
+
+	/**
+	@class Backbone.DynamoDB.Model
+	@extends Backbone.Model
+	 */
+	Model: Backbone.Model.extend({
+		/**
+		Using the [jQuery.ajax](http://api.jquery.com/jQuery.ajax/#jQuery-ajax-settings) `context` option doesn't work on
+		the `success` and `error` callbacks in the original Backbone `save()`, `destroy()`, and `fetch()` methods. This method is overwritten
+		to fix that issue.
+
+		@method save
+		@param {Object} attributes
+		@param {Object} options
+		 */
 		save: function(attributes, options) {
 			return Backbone.Model.prototype.save.call(this, attributes, bindContext(options));
 		},
+		/**
+		Using the [jQuery.ajax](http://api.jquery.com/jQuery.ajax/#jQuery-ajax-settings) `context` option doesn't work on
+		the `success` and `error` callbacks in the original Backbone `save()`, `destroy()`, and `fetch()` methods. This method is overwritten
+		to fix that issue.
+
+		@method destroy
+		@param {Object} options
+		 */
 		destroy: function(options) {
 			return Backbone.Model.prototype.destroy.call(this, bindContext(options));
 		},
+		/**
+		Using the [jQuery.ajax](http://api.jquery.com/jQuery.ajax/#jQuery-ajax-settings) `context` option doesn't work on
+		the `success` and `error` callbacks in the original Backbone `save()`, `destroy()`, and `fetch()` methods. This method is overwritten
+		to fix that issue.
+
+		@method fetch
+		@param {Object} options
+		 */
 		fetch: function(options) {
 			return Backbone.Model.prototype.fetch.call(this, bindContext(options));
 		},
@@ -29,14 +69,33 @@ define(['underscore', 'backbone'], function(_, Backbone) {
 				model: Backbone.Model.prototype.toJSON.call(this, options)
 			};
 		},
+		/**
+		Iterates through the given attributes looking for `Date` values that have been converted into string, and converts them back to `Date` instances.
+
+		@method parse
+		@param {Object} obj
+		@return {Object} Parsed attributes
+		 */
 		parse: function(obj) {
 			var m = obj.model;
 			for (var k in m) if (isISODate.test(m[k])) m[k] = new Date(m[k]);
 			return m;
 		}
-	});
+	}),
 
-	Backbone.DynamoDB.Collection = Backbone.Collection.extend({
+	/**
+	@class Backbone.DynamoDB.Collection
+	@extends Backbone.Collection
+	 */
+	Collection: Backbone.Collection.extend({
+		/**
+		Using the [jQuery.ajax](http://api.jquery.com/jQuery.ajax/#jQuery-ajax-settings) `context` option doesn't work on
+		the `success` and `error` callbacks in the original Backbone `save()`, `destroy()`, and `fetch()` methods. This method is overwritten
+		to fix that issue.
+
+		@method save
+		@param {Object} options
+		 */
 		fetch: function(options) {
 			return Backbone.Collection.prototype.fetch.call(this, bindContext(options));
 		},
@@ -49,7 +108,7 @@ define(['underscore', 'backbone'], function(_, Backbone) {
 			// Backbone passes each object in the collection through model.parse when instantiating the Models
 			return obj.collection;
 		}
-	});
+	})
+};
 
-	return Backbone;
-});
+if (typeof module !== 'undefined') module.exports = Backbone;
