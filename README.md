@@ -1,3 +1,4 @@
+[![build status](https://secure.travis-ci.org/serg-io/backbone-dynamodb.png)](http://travis-ci.org/serg-io/backbone-dynamodb)
 backbone-dynamodb
 =================
 
