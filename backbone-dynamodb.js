@@ -1,5 +1,5 @@
 /**
-backbone-dynamodb 0.0.3 - (c) 2012 Sergio Alcantara
+backbone-dynamodb 0.0.4 - (c) 2012 Sergio Alcantara
 Server side (Node.js) `Backbone.sync()` DynamoDB implementation
 
 @module DynamoDB
@@ -34,29 +34,33 @@ function isJSONString(str) {
 
 var encodeAttribute = exports.encodeAttribute = function(v) {
 	if (_.isArray(v)) {
-		var type = 'N', set = _.map(v, function(i) {
+		var value = {}, type = null, set = _.map(v, function(i) {
 			var j = encodeAttribute(i);
-			if (j.S) type = 'S';
-			return j.N || j.S;
+			if (!type) type = _.keys(j)[0];
+			return j.N || j.B || j.S;
 		});
-		return type === 'N' ? {NS: set} : {SS: set};
+		value[type + 'S'] = set;
+		return value;
 	} else if (_.isNumber(v)) return {N: '' + v};
 	else if (_.isBoolean(v)) return {S: v.toString()};
 	else if (_.isDate(v)) return {S: v.toISOString()};
 	else if (_.isString(v)) return {S: v};
+	else if (Buffer.isBuffer(v)) return {B: v.toString('base64')};
 	return {S: JSON.stringify(v)};
 };
 
 var decodeAttribute = exports.decodeAttribute = function(attr) {
-	if (attr.NS || attr.SS) {
-		var type = attr.NS ? 'N' : 'S';
-		return _.map(attr[type + 'S'], function(v) {
+	var type = _.keys(attr)[0];
+	if (type.length === 2) { // if type = NS|BS|SS
+		var t = type.charAt(0); // t = N|B|S
+		return _.map(attr[type], function(v) {
 			var _attr = {};
-			_attr[type] = v;
+			_attr[t] = v;
 			return decodeAttribute(_attr);
 		});
 	}
 	if (attr.N) return attr.N.indexOf('.') !== -1 ? parseFloat(attr.N) : parseInt(attr.N);
+	if (attr.B) return new Buffer(attr.B, 'base64');
 
 	var v = attr.S;
 	if (/^true|false$/.test(v)) return v === 'true';

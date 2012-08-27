@@ -69,6 +69,7 @@ Examples
 --------
 
 	var Backbone = require('backbone-dynamodb');
+	var fs = require('fs');
 
 	var Book = Backbone.DynamoDB.Model.extend({
 		idAttribute: 'isbn', // The HashKeyElement
@@ -159,3 +160,26 @@ Examples
 		success: function(comments, response) {},
 		error: function(comments, response) {}
 	});
+
+
+	// Use a `Buffer` instance to store binary data
+	fs.readFile(__dirname + '/cover.png', function(error, data) { // data is an instance of `Buffer`
+		new Book({
+			isbn: 9781933988177,
+			cat: ['book','paperback'],
+			name: 'Lucene in Action, Second Edition',
+			author: 'Michael McCandless',
+			sequence_i: 1,
+			genre_s: 'IT',
+			inStock: true,
+			price: 30.50,
+			pages_i: 475,
+			published_date: new Date(2012, 0, 4),
+			coverImage: data
+		}).save({}, {
+			success: function(book, response) {},
+			error: function(book, response) {},
+			complete: function(book, response) {}
+		});
+		// Note: Binary sets are also supported. Just set an attribute's value to an array of `Buffer` instances.
+	})
