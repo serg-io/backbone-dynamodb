@@ -1,5 +1,5 @@
 /**
-backbone-dynamodb 0.0.4 - (c) 2012 Sergio Alcantara
+backbone-dynamodb 0.0.5 - (c) 2012 Sergio Alcantara
 Server side (Node.js) `Backbone.sync()` DynamoDB implementation
 
 @module DynamoDB
@@ -76,7 +76,7 @@ function putItem(model, options) {
 		Item: {}
 	};
 	var changed = {};
-	if (!model.isNew()) {
+	if (model.isNew()) {
 		var idAttr = _.result(model, 'idAttribute');
 		body.Item[idAttr] = encodeAttribute(changed[idAttr] = uuid());
 	}
