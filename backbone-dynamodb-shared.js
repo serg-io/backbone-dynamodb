@@ -65,9 +65,29 @@ Backbone.DynamoDB = {
 			return Backbone.Model.prototype.fetch.call(this, bindContext(options));
 		},
 		toJSON: function(options) {
-			return {
-				model: Backbone.Model.prototype.toJSON.call(this, options)
-			};
+			var json = Backbone.Model.prototype.toJSON.call(this, options);
+
+			if (options && !_.isEmpty(options.exclude)) {
+				var filtered = {},
+					exclude = options.exclude;
+				_.isArray(exclude) || (exclude = [exclude]);
+
+				_.each(json, function(value, name) {
+					if (_.indexOf(exclude, name) === -1) filtered[name] = value;
+				});
+				json = filtered;
+			} else if (options && !_.isEmpty(options.include)) {
+				var filtered = {},
+					include = options.include;
+				_.isArray(include) || (include = [include]);
+
+				_.each(json, function(value, name) {
+					if (_.indexOf(include, name) !== -1) filtered[name] = value;
+				});
+				json = filtered;
+			}
+
+			return {model: json};
 		},
 		/**
 		Iterates through the given attributes looking for `Date` values that have been converted into string, and converts them back to `Date` instances.
