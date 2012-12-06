@@ -10,6 +10,31 @@ Execute the following command at the root of your project:
 
 	npm install backbone-dynamodb
 
+AWS Credentials
+---------------
+
+You can set the AWS credentials and region using any of the following methods:
+
+1.	Manually:
+	
+		Backbone.DynamoDB.setup('accessKeyID', 'secretAccessKey', 'awsRegion');
+
+2.	Setting the following environment variables. There's no need to call the `setup()` method, it would get those
+	values automatically:
+	* `AWS_ACCESS_KEY_ID`
+	* `AWS_SECRET_ACCESS_KEY`
+	* `AWS_REGION`
+
+3.	Using an IAM Role. To use IAM Role credentials just [assign a role to the EC2](http://docs.amazonwebservices.com/AWSEC2/latest/UserGuide/UsingIAM.html#UsingIAMrolesWithAmazonEC2Instances) instance when you launch it.
+	backbone-dynamodb will automatically get the credentials from the [EC2 metadata service](http://docs.amazonwebservices.com/AWSEC2/latest/UserGuide/AESDG-chapter-instancedata.html).
+	There's no need to call the `setup()` method, it would get those values automatically, however, if you don't want
+	to use the default AWS region (`us-east-1`), you can call the `setup()` method to specify the region you want to use,
+	just set the first two arguments to `null`:
+
+		Backbone.DynamoDB.setup(null, null, 'us-west-1');
+
+
+
 `Backbone.DynamoDB.Model`
 -------------------------
 
