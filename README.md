@@ -207,4 +207,4 @@ Examples
 			complete: function(book, response) {}
 		});
 		// Note: Binary sets are also supported. Just set an attribute's value to an array of `Buffer` instances.
-	})
+	});

@@ -1,5 +1,5 @@
 /**
-backbone-dynamodb 0.1.0 - (c) 2012 Sergio Alcantara
+backbone-dynamodb 0.2.0 - (c) 2013 Sergio Alcantara
 Server side (Node.js) `Backbone.sync()` DynamoDB implementation
 
 @module DynamoDB

@@ -1,5 +1,8 @@
-// Use nodeunit to run this test
-// Create a table called 'Books' before running this test.
+/**
+ * Use nodeunit to run this test.
+ * Before running this test, create a table called 'Books' with 'isbn',
+ * which is a number, as the hash key.
+ */
 
 var _ = require('underscore'),
 	dataset = require('./dataset.js'),
