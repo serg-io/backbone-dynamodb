@@ -8,10 +8,11 @@ Server side (Node.js) `Backbone.sync()` DynamoDB implementation
 
 var _ = require('underscore'),
 	uuid = require('node-uuid'),
-	DynDB = require('dyndb'),
+	AWS = require('aws-sdk'),
 	Backbone = require('./backbone-dynamodb-shared');
+_.mixin(require('underscore.deferred'));
 
-var dyndb = new DynDB();
+var dynamoDB = new AWS.DynamoDB();
 
 /**
 Sets the access keys and region to use for every request. If no arguments are passed,
@@ -24,7 +25,8 @@ it gets the keys and region from the following environment variables:
 @method setup
 @return {DynDB} The underlying DynDB instance
  */
-Backbone.DynamoDB.setup = dyndb.setup;
+// Backbone.DynamoDB.setup = dyndb.setup;
+Backbone.AWS = AWS;
 
 function isJSONString(str) {
 	// TODO: Improve to make sure that it is a valid JSON string (use RegExp?)
@@ -69,6 +71,13 @@ var decodeAttribute = exports.decodeAttribute = function(attr) {
 	return JSON.parse(v);
 };
 
+function wrapComplete(instance, options) {
+	var complete = options.complete;
+	options.complete = function(resp) {
+		if (complete) complete.call(this, instance, resp, options);
+	};
+}
+
 function putItem(model, options) {
 	options || (options = {});
 	var body = {
@@ -85,12 +94,25 @@ function putItem(model, options) {
 	});
 
 	_.extend(body, options.dynamodb);
-	dyndb.request('PutItem', body, function(e, json) {
-		if (e) options.error(model, {code: 'DBError', dbError: e});
-		else options.success({model: changed, dynamodb: json});
 
-		if (_.isFunction(options.complete)) options.complete(model, {dynamodb: json});
+	var deferred = new _.Deferred(),
+		request = dynamoDB.client.putItem(body);
+
+	request.on('complete', function(resp) {
+		var ctx = options.context || model;
+
+		if (resp.error) deferred.rejectWith(ctx, [resp, options]);
+		else {
+			resp.backboneData = changed;
+			deferred.resolveWith(ctx, [resp, options]);
+		}
 	});
+	request.send();
+
+	wrapComplete(model, options);
+	deferred.done(options.success).fail(options.error).always(options.complete);
+
+	return deferred.promise(request);
 }
 
 function getItem(model, options) {
@@ -104,22 +126,30 @@ function getItem(model, options) {
 	if (model.rangeAttribute) body.Key.RangeKeyElement = encodeAttribute(model.get(model.rangeAttribute));
 
 	_.extend(body, options.dynamodb);
-	dyndb.request('GetItem', body, function(e, json) {
-		if (e) options.error(model, {code: 'DBError', dbError: e});
+
+	var deferred = new _.Deferred(),
+		request = dynamoDB.client.getItem(body);
+
+	request.on('complete', function(resp) {
+		var ctx = options.context || model;
+		if (!resp.error && _.isEmpty(resp.data.Item)) resp.error = {code: 'NotFound'};
+
+		if (resp.error) deferred.rejectWith(ctx, [resp, options]);
 		else {
-			if (!json.Item || _.isEmpty(json.Item)) options.error(model, {code: 'NotFound'});
-			else {
-				var attrs = {};
-				_.each(json.Item, function(attr, key) {
-					attrs[key] = decodeAttribute(attr);
-				});
+			resp.backboneData = {};
+			_(resp.data.Item).each(function(attr, key) {
+				resp.backboneData[key] = decodeAttribute(attr);
+			});
 
-				options.success({model: attrs, dynamodb: json});
-			}
+			deferred.resolveWith(ctx, [resp, options]);
 		}
-
-		if (_.isFunction(options.complete)) options.complete(model, {dynamodb: json});
 	});
+	request.send();
+
+	wrapComplete(model, options);
+	deferred.done(options.success).fail(options.error).always(options.complete);
+
+	return deferred.promise(request);
 }
 
 function deleteItem(model, options) {
@@ -133,46 +163,53 @@ function deleteItem(model, options) {
 	if (model.rangeAttribute) body.Key.RangeKeyElement = encodeAttribute(model.get(model.rangeAttribute));
 
 	_.extend(body, options.dynamodb);
-	dyndb.request('DeleteItem', body, function(e, json) {
-		if (e) options.error(model, {code: 'DBError', dbError: e});
-		else options.success({dynamodb: json});
 
-		if (_.isFunction(options.complete)) options.complete(model, {dynamodb: json});
+	var deferred = new _.Deferred(),
+		request = dynamoDB.client.deleteItem(body);
+
+	request.on('complete', function(resp) {
+		var ctx = options.context || model;
+
+		if (resp.error) deferred.rejectWith(ctx, [resp, options]);
+		else deferred.resolveWith(ctx, [resp, options]);
 	});
+	request.send();
+
+	wrapComplete(model, options);
+	deferred.done(options.success).fail(options.error).always(options.complete);
+
+	return deferred.promise(request);
 }
 
 function fetchCollection(collection, options) {
-	var body = _.extend({TableName: collection._tableName()}, options.query || options.scan, options.dynamodb);
+	var fetchType = options.query ? 'query' : 'scan',
+		body = _.extend({TableName: collection._tableName()}, options[fetchType], options.dynamodb);
 
-	dyndb.request(options.query ? 'Query' : 'Scan', body, function(e, json) {
-		if (e) options.error(collection, {code: 'DBError', dbError: e});
+	var deferred = new _.Deferred(),
+		request = dynamoDB.client[fetchType](body);
+
+	request.on('complete', function(resp) {
+		var ctx = options.context || collection;
+
+		if (resp.error) deferred.rejectWith(ctx, [resp, options]);
 		else {
-			options.success({
-				collection: _.map(json.Items, function(it) {
-					var model = {};
-					_.each(it, function(attr, key) {
-						model[key] = decodeAttribute(attr);
-					});
-					return {model: model};
-				}),
-				dynamodb: json
+			resp.backboneData = _.map(resp.data.Items, function(it) {
+				var attrs = {};
+				_.each(it, function(attr, key) {
+					attrs[key] = decodeAttribute(attr);
+				});
+				return {backboneData: attrs};
 			});
+			deferred.resolveWith(ctx, [resp, options]);
 		}
-
-		if (_.isFunction(options.complete)) options.complete(collection, {dynamodb: json});
 	});
-}
+	request.send();
 
-Backbone.sync = function(method, instance, options) {
-	if (method === 'create' || method === 'update') {
-		putItem(instance, options);
-	} else if (method === 'read') {
-		if (instance instanceof Backbone.DynamoDB.Collection) fetchCollection(instance, options);
-		else getItem(instance, options);
-	} else {
-		deleteItem(instance, options);
-	}
-};
+	wrapComplete(collection, options);
+	deferred.done(options.success).fail(options.error).always(options.complete);
+
+	return deferred.promise(request);
+}
 
 var sharedMethods = {
 	_tableName: function() {
@@ -181,6 +218,18 @@ var sharedMethods = {
 		var table = _.result(this, this instanceof Backbone.DynamoDB.Model ? 'urlRoot' : 'url');
 		if (table.charAt(0) === '/') table = table.substr(1);
 		return table.charAt(0).toUpperCase() + table.substr(1);
+	},
+	sync: function(method, instance, options) {
+		if (method === 'create' || method === 'update') {
+			return putItem(instance, options);
+		} else if (method === 'read') {
+			if (instance instanceof Backbone.DynamoDB.Collection) {
+				return fetchCollection(instance, options);
+			} else {
+				return getItem(instance, options);
+			}
+		}
+		return deleteItem(instance, options);
 	}
 };
 

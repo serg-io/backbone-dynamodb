@@ -11,9 +11,13 @@
 	},
 	"main": "backbone-dynamodb.js",
 	"dependencies": {
-		"dyndb": "0.2.0",
+		"aws-sdk": "0.9.7-pre.8",
 		"underscore": "1.4.4",
+		"underscore.deferred": "0.4.0",
 		"backbone": "1.0.0",
 		"node-uuid": "1.4.0"
+	},
+	"devDependencies": {
+		"nodeunit": "0.8.0"
 	}
 }

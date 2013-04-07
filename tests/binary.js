@@ -37,8 +37,8 @@ exports.write = function(test) {
 			success: function(book, response) {
 				test.ok(true, book.id + ' - Saved');
 			},
-			error: function(book, error) {
-				test.ok(false, book.id + ' - Error saving book: ' + JSON.stringify(error));
+			error: function(book, response) {
+				test.ok(false, book.id + ' - Error saving book: ' + JSON.stringify(response.error));
 			}
 		});
 	});
@@ -56,8 +56,8 @@ exports.read = function(test) {
 			if (_.isNumber(equal)) test.ok(false, 'The bytes at index ' + equal + ' are not equal.');
 			else test.ok(equal, 'The data is not equal.');
 		},
-		error: function(book, error) {
-			test.ok(false, 'Error fetching book: ' + JSON.stringify(error));
+		error: function(book, response) {
+			test.ok(false, 'Error fetching book: ' + JSON.stringify(response.error));
 		},
 		complete: function(book, response) {
 			test.done();
@@ -79,8 +79,8 @@ exports.writeSet = function(test) {
 			success: function(book, response) {
 				test.ok(true, book.id + ' - Saved');
 			},
-			error: function(book, error) {
-				test.ok(false, book.id + ' - Error saving book: ' + JSON.stringify(error));
+			error: function(book, response) {
+				test.ok(false, book.id + ' - Error saving book: ' + JSON.stringify(response.error));
 			}
 		});
 	});
@@ -111,8 +111,8 @@ exports.readSet = function(test) {
 				test.ok(ok, 'Not equal.');
 			}
 		},
-		error: function(book, error) {
-			test.ok(false, 'Error fetching book: ' + JSON.stringify(error));
+		error: function(book, response) {
+			test.ok(false, 'Error fetching book: ' + JSON.stringify(response.error));
 		},
 		complete: function(book, response) {
 			test.done();
@@ -132,8 +132,8 @@ exports.destroy = function(test) {
 			success: function(book, response) {
 				test.ok(true, 'Deleted');
 			},
-			error: function(book, error) {
-				test.ok(false, 'Error deleting book: ' + JSON.stringify(error));
+			error: function(book, response) {
+				test.ok(false, 'Error deleting book: ' + JSON.stringify(response.error));
 			}
 		});
 	}

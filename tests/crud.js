@@ -21,6 +21,30 @@ var Books = Backbone.DynamoDB.Collection.extend({
 	model: Book
 });
 
+// exports.read = function(test) {
+// 	test.expect(1);
+
+// 	new Book({isbn: 9780641723445}).fetch({
+// 		dynamodb: {
+// 			ConsistentRead: true
+// 		},
+// 		complete: function() {
+// 			test.done();
+// 		},
+// 		success: function(book, response) {
+// 			var expected = _.find(dataset.books, function(b) { return b.isbn === book.id; });
+
+// 			test.ok(_.isEqual(expected, book.attributes), book.id + ' - Not equal.\nExpected:\n' + JSON.stringify(expected) + '\nReceived:\n' + JSON.stringify(book.attributes));
+// 		},
+// 		error: function(book, response) {
+// 			test.ok(false, book.id + ' - Error fetching book: ' + JSON.stringify(response.error));
+// 		}
+// 	});
+// };
+
+
+// return;
+
 exports.create = function(test) {
 	var len = dataset.books.length,
 		done = _.after(len, function() { test.done(); });
@@ -32,8 +56,8 @@ exports.create = function(test) {
 			success: function(book, response) {
 				test.ok(true, book.id + ' - Saved');
 			},
-			error: function(book, error) {
-				test.ok(false, book.id + ' - Error saving book: ' + JSON.stringify(error));
+			error: function(book, response) {
+				test.ok(false, book.id + ' - Error saving book: ' + JSON.stringify(response.error));
 			}
 		});
 	}
@@ -55,8 +79,8 @@ exports.read = function(test) {
 
 				test.ok(_.isEqual(expected, book.attributes), book.id + ' - Not equal.\nExpected:\n' + JSON.stringify(expected) + '\nReceived:\n' + JSON.stringify(book.attributes));
 			},
-			error: function(book, error) {
-				test.ok(false, book.id + ' - Error fetching book: ' + JSON.stringify(error));
+			error: function(book, response) {
+				test.ok(false, book.id + ' - Error fetching book: ' + JSON.stringify(response.error));
 			}
 		});
 	}
@@ -90,8 +114,8 @@ exports.scan = function(test) {
 			if (noMatch) test.ok(false, 'At least 1 of the fetched books doesn\'t match the original');
 			else test.ok(expectedColl.length === books.length, 'The number of fetched books doesn\'t match the number of expected books');
 		},
-		error: function(books, error) {
-			test.ok(false, 'Error fetching collection:\n' + JSON.stringify(error));
+		error: function(books, response) {
+			test.ok(false, 'Error fetching collection:\n' + JSON.stringify(response.error));
 		}
 	});
 };
@@ -108,8 +132,8 @@ exports.update = function(test) {
 			success: function(book, response) {
 				test.ok(true);
 			},
-			error: function(book, error) {
-				test.ok(false, book.id + ' - Error updating book:\n' + JSON.stringify(error));
+			error: function(book, response) {
+				test.ok(false, book.id + ' - Error updating book:\n' + JSON.stringify(response.error));
 			}
 		});
 	});
@@ -126,8 +150,8 @@ exports.destroy = function(test) {
 			success: function(book, response) {
 				test.ok(true);
 			},
-			error: function(book, error) {
-				test.ok(false, book.id + ' - Error deleting book: ' + JSON.stringify(error));
+			error: function(book, response) {
+				test.ok(false, book.id + ' - Error deleting book: ' + JSON.stringify(response.error));
 			}
 		});
 	}

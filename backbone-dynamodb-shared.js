@@ -11,13 +11,13 @@ if (typeof require === 'function') {
 	var Backbone = Backbone || require('backbone');
 }
 
-function bindContext(options){
-	if (options && options.context) {
-		if (_.isFunction(options.error)) options.error = _.bind(options.error, options.context);
-		if (_.isFunction(options.success)) options.success = _.bind(options.success, options.context);
-		if (_.isFunction(options.complete)) options.complete = _.bind(options.complete, options.context);
+function bindContext(opts){
+	if (opts) {
+		var ctx = opts.context || this;
+		if (opts.error) opts.error = _.bind(opts.error, ctx);
+		if (opts.success) opts.success = _.bind(opts.success, ctx);
 	}
-	return options;
+	return opts;
 }
 
 var isISODate = /^\d{4}(-\d{2}){2}T\d{2}(:\d{2}){2}\.\d{3}Z$/;
@@ -30,6 +30,7 @@ Backbone.DynamoDB = {
 	@extends Backbone.Model
 	 */
 	Model: Backbone.Model.extend({
+		_bindContext: bindContext,
 		/**
 		Using the [jQuery.ajax](http://api.jquery.com/jQuery.ajax/#jQuery-ajax-settings) `context` option doesn't work on
 		the `success` and `error` callbacks in the original Backbone `save()`, `destroy()`, and `fetch()` methods. This method is overwritten
@@ -40,7 +41,7 @@ Backbone.DynamoDB = {
 		@param {Object} options
 		 */
 		save: function(attributes, options) {
-			return Backbone.Model.prototype.save.call(this, attributes, bindContext(options));
+			return Backbone.Model.prototype.save.call(this, attributes, this._bindContext(options));
 		},
 		/**
 		Using the [jQuery.ajax](http://api.jquery.com/jQuery.ajax/#jQuery-ajax-settings) `context` option doesn't work on
@@ -51,7 +52,7 @@ Backbone.DynamoDB = {
 		@param {Object} options
 		 */
 		destroy: function(options) {
-			return Backbone.Model.prototype.destroy.call(this, bindContext(options));
+			return Backbone.Model.prototype.destroy.call(this, this._bindContext(options));
 		},
 		/**
 		Using the [jQuery.ajax](http://api.jquery.com/jQuery.ajax/#jQuery-ajax-settings) `context` option doesn't work on
@@ -62,7 +63,7 @@ Backbone.DynamoDB = {
 		@param {Object} options
 		 */
 		fetch: function(options) {
-			return Backbone.Model.prototype.fetch.call(this, bindContext(options));
+			return Backbone.Model.prototype.fetch.call(this, this._bindContext(options));
 		},
 		toJSON: function(options) {
 			var json = Backbone.Model.prototype.toJSON.call(this, options);
@@ -87,7 +88,7 @@ Backbone.DynamoDB = {
 				json = filtered;
 			}
 
-			return {model: json};
+			return {backboneData: json};
 		},
 		/**
 		Iterates through the given attributes looking for `Date` values that have been converted into string, and converts them back to `Date` instances.
@@ -97,7 +98,7 @@ Backbone.DynamoDB = {
 		@return {Object} Parsed attributes
 		 */
 		parse: function(obj) {
-			var m = obj.model;
+			var m = obj.backboneData;
 			for (var k in m) if (isISODate.test(m[k])) m[k] = new Date(m[k]);
 			return m;
 		}
@@ -108,6 +109,7 @@ Backbone.DynamoDB = {
 	@extends Backbone.Collection
 	 */
 	Collection: Backbone.Collection.extend({
+		_bindContext: bindContext,
 		/**
 		Using the [jQuery.ajax](http://api.jquery.com/jQuery.ajax/#jQuery-ajax-settings) `context` option doesn't work on
 		the `success` and `error` callbacks in the original Backbone `save()`, `destroy()`, and `fetch()` methods. This method is overwritten
@@ -117,16 +119,16 @@ Backbone.DynamoDB = {
 		@param {Object} options
 		 */
 		fetch: function(options) {
-			return Backbone.Collection.prototype.fetch.call(this, bindContext(options));
+			return Backbone.Collection.prototype.fetch.call(this, this._bindContext(options));
 		},
 		toJSON: function(options) {
 			return {
-				collection: Backbone.Collection.prototype.toJSON.call(this, options)
+				backboneData: Backbone.Collection.prototype.toJSON.call(this, options)
 			};
 		},
 		parse: function(obj) {
 			// Backbone passes each object in the collection through model.parse when instantiating the Models
-			return obj.collection;
+			return obj.backboneData;
 		}
 	})
 };
