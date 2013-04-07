@@ -21,30 +21,6 @@ var Books = Backbone.DynamoDB.Collection.extend({
 	model: Book
 });
 
-// exports.read = function(test) {
-// 	test.expect(1);
-
-// 	new Book({isbn: 9780641723445}).fetch({
-// 		dynamodb: {
-// 			ConsistentRead: true
-// 		},
-// 		complete: function() {
-// 			test.done();
-// 		},
-// 		success: function(book, response) {
-// 			var expected = _.find(dataset.books, function(b) { return b.isbn === book.id; });
-
-// 			test.ok(_.isEqual(expected, book.attributes), book.id + ' - Not equal.\nExpected:\n' + JSON.stringify(expected) + '\nReceived:\n' + JSON.stringify(book.attributes));
-// 		},
-// 		error: function(book, response) {
-// 			test.ok(false, book.id + ' - Error fetching book: ' + JSON.stringify(response.error));
-// 		}
-// 	});
-// };
-
-
-// return;
-
 exports.create = function(test) {
 	var len = dataset.books.length,
 		done = _.after(len, function() { test.done(); });

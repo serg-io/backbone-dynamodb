@@ -2,7 +2,7 @@
 	"name": "backbone-dynamodb",
 	"author": "Sergio Alcantara <iserg9@gmail.com> (https://github.com/serg-io)",
 	"description": "Backbone.js sync for DynamoDB",
-	"version": "0.2.0",
+	"version": "0.3.0",
 	"homepage": "https://github.com/serg-io/backbone-dynamodb",
 	"keywords": ["backbone", "dynamodb", "dyndb", "aws", "amazon"],
 	"repository": {

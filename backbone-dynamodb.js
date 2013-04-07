@@ -1,5 +1,5 @@
 /**
-backbone-dynamodb 0.2.0 - (c) 2013 Sergio Alcantara
+backbone-dynamodb 0.3.0 - (c) 2013 Sergio Alcantara
 Server side (Node.js) `Backbone.sync()` DynamoDB implementation
 
 @module DynamoDB
@@ -15,17 +15,8 @@ _.mixin(require('underscore.deferred'));
 var dynamoDB = new AWS.DynamoDB();
 
 /**
-Sets the access keys and region to use for every request. If no arguments are passed,
-it gets the keys and region from the following environment variables:
-
-1. `AWS_ACCESS_KEY_ID`
-2. `AWS_SECRET_ACCESS_KEY`
-3. `AWS_REGION`
-
-@method setup
-@return {DynDB} The underlying DynDB instance
+ * Adding the aws-sdk to Backbone.AWS
  */
-// Backbone.DynamoDB.setup = dyndb.setup;
 Backbone.AWS = AWS;
 
 function isJSONString(str) {
