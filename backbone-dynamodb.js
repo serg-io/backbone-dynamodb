@@ -80,7 +80,7 @@ function putItem(model, options) {
 		var idAttr = _.result(model, 'idAttribute');
 		body.Item[idAttr] = encodeAttribute(changed[idAttr] = uuid());
 	}
-	_.each(model.attributes, function(v, key) {
+	_.each(model.toJSON(options), function(v, key) {
 		body.Item[key] = encodeAttribute(v);
 	});
 
@@ -94,8 +94,8 @@ function putItem(model, options) {
 
 		if (resp.error) deferred.rejectWith(ctx, [resp, options]);
 		else {
-			resp.backboneData = changed;
-			deferred.resolveWith(ctx, [resp, options]);
+			options.dynamodbResponse = resp;
+			deferred.resolveWith(ctx, [changed, options]);
 		}
 	});
 	request.send();
@@ -110,11 +110,10 @@ function getItem(model, options) {
 	options || (options = {});
 	var body = {
 		TableName: model._tableName(),
-		Key: {
-			HashKeyElement: encodeAttribute(model.id)
-		}
+		Key: {}
 	};
-	if (model.rangeAttribute) body.Key.RangeKeyElement = encodeAttribute(model.get(model.rangeAttribute));
+	body.Key[model.idAttribute] = encodeAttribute(model.id);
+	if (model.rangeAttribute) body.Key[model.rangeAttribute] = encodeAttribute(model.get(model.rangeAttribute));
 
 	_.extend(body, options.dynamodb);
 
@@ -127,12 +126,13 @@ function getItem(model, options) {
 
 		if (resp.error) deferred.rejectWith(ctx, [resp, options]);
 		else {
-			resp.backboneData = {};
-			_(resp.data.Item).each(function(attr, key) {
-				resp.backboneData[key] = decodeAttribute(attr);
+			var attributes = {};
+			_.each(resp.data.Item, function(attribute, key) {
+				attributes[key] = decodeAttribute(attribute);
 			});
 
-			deferred.resolveWith(ctx, [resp, options]);
+			options.dynamodbResponse = resp;
+			deferred.resolveWith(ctx, [attributes, options]);
 		}
 	});
 	request.send();
@@ -184,14 +184,16 @@ function fetchCollection(collection, options) {
 
 		if (resp.error) deferred.rejectWith(ctx, [resp, options]);
 		else {
-			resp.backboneData = _.map(resp.data.Items, function(it) {
-				var attrs = {};
-				_.each(it, function(attr, key) {
-					attrs[key] = decodeAttribute(attr);
+			var modelsArray = _.map(resp.data.Items, function(item) {
+				var attributes = {};
+				_.each(item, function(attribute, key) {
+					attributes[key] = decodeAttribute(attribute);
 				});
-				return {backboneData: attrs};
+				return attributes;
 			});
-			deferred.resolveWith(ctx, [resp, options]);
+
+			options.dynamodbResponse = resp;
+			deferred.resolveWith(ctx, [modelsArray, options]);
 		}
 	});
 	request.send();
