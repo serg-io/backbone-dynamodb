@@ -19,12 +19,6 @@ var dynamoDB = new AWS.DynamoDB();
  */
 Backbone.AWS = AWS;
 
-function isJSONString(str) {
-	try { JSON.parse(s); }
-	catch(e) { return false; }
-	return true;
-}
-
 var encodeAttribute = exports.encodeAttribute = function(v) {
 	if (_.isArray(v)) {
 		var value = {}, type = null, set = _.map(v, function(i) {
@@ -58,8 +52,12 @@ var decodeAttribute = exports.decodeAttribute = function(attr) {
 	var v = attr.S;
 	if (/^true|false$/.test(v)) return v === 'true';
 	else if (Backbone.DynamoDB.isISODate.test(v)) return new Date(v);
-	else if (!isJSONString(v)) return v;
-	return JSON.parse(v);
+	var returnValue;
+	try { returnValue = JSON.parse(v); }
+	catch(e) {
+		return v;
+	}
+	return returnValue;
 };
 
 function wrapComplete(instance, options) {
