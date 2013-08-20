@@ -20,9 +20,9 @@ var dynamoDB = new AWS.DynamoDB();
 Backbone.AWS = AWS;
 
 function isJSONString(str) {
-	// TODO: Improve to make sure that it is a valid JSON string (use RegExp?)
-	var f = str.charAt(0), l = str.charAt(str.length - 1);
-	return (f === '{' && l === '}') || (f === '[' && l === ']') || str === 'null';
+	try { JSON.parse(s); }
+	catch(e) { return false; }
+	return true;
 }
 
 var encodeAttribute = exports.encodeAttribute = function(v) {
