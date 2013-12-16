@@ -147,11 +147,10 @@ function deleteItem(model, options) {
 	options || (options = {});
 	var body = {
 		TableName: model._tableName(),
-		Key: {
-			HashKeyElement: encodeAttribute(model.id)
-		}
+		Key: {}
 	};
-	if (model.rangeAttribute) body.Key.RangeKeyElement = encodeAttribute(model.get(model.rangeAttribute));
+	body.Key[model.idAttribute] = encodeAttribute(model.id);
+	if (model.rangeAttribute) body.Key[model.rangeAttribute] = encodeAttribute(model.get(model.rangeAttribute));
 
 	_.extend(body, options.dynamodb);
 
