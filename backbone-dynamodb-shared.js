@@ -95,6 +95,14 @@ Backbone.DynamoDB = {
 		parse: function(obj) {
 			for (var key in obj) if (isISODate.test(obj[key])) obj[key] = new Date(obj[key]);
 			return obj;
+		},
+		isNew: function() {
+			var hashKey = _.result(this, 'hashAttribute') || _.result(this, 'idAttribute'),
+				rangeKey = _.result(this, 'rangeAttribute'),
+				hashValue = this.get(hashKey),
+				rangeValue = rangeKey ? this.get(rangeKey) : null;
+
+			return hashValue == null || ( rangeKey && rangeValue == null );
 		}
 	}),
 

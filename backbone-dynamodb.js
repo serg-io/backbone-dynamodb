@@ -77,8 +77,8 @@ function putItem(model, options) {
 	};
 	var changed = {};
 	if (model.isNew()) {
-		var idAttr = _.result(model, 'idAttribute');
-		body.Item[idAttr] = encodeAttribute(changed[idAttr] = uuid());
+		var hashAttribute = _.result(model, 'hashAttribute') || _.result(model, 'idAttribute');
+		body.Item[hashAttribute] = encodeAttribute(changed[hashAttribute] = uuid());
 	}
 	_.each(model.toJSON(options), function(v, key) {
 		body.Item[key] = encodeAttribute(v);
@@ -108,12 +108,18 @@ function putItem(model, options) {
 
 function getItem(model, options) {
 	options || (options = {});
-	var body = {
-		TableName: model._tableName(),
-		Key: {}
-	};
-	body.Key[model.idAttribute] = encodeAttribute(model.id);
-	if (model.rangeAttribute) body.Key[model.rangeAttribute] = encodeAttribute(model.get(model.rangeAttribute));
+	var hashAttribute = _.result(model, 'hashAttribute') || _.result(model, 'idAttribute'),
+		rangeAttribute = _.result(model, 'rangeAttribute'),
+		body = {
+			TableName: model._tableName(),
+			Key: {}
+		};
+
+	body.Key[hashAttribute] = encodeAttribute(model.get(hashAttribute));
+
+	if (rangeAttribute) {
+		body.Key[rangeAttribute] = encodeAttribute(model.get(rangeAttribute));
+	}
 
 	_.extend(body, options.dynamodb);
 
@@ -145,12 +151,18 @@ function getItem(model, options) {
 
 function deleteItem(model, options) {
 	options || (options = {});
-	var body = {
-		TableName: model._tableName(),
-		Key: {}
-	};
-	body.Key[model.idAttribute] = encodeAttribute(model.id);
-	if (model.rangeAttribute) body.Key[model.rangeAttribute] = encodeAttribute(model.get(model.rangeAttribute));
+	var hashAttribute = _.result(model, 'hashAttribute') || _.result(model, 'idAttribute'),
+		rangeAttribute = _.result(model, 'rangeAttribute'),
+		body = {
+			TableName: model._tableName(),
+			Key: {}
+		};
+
+	body.Key[hashAttribute] = encodeAttribute(model.get(hashAttribute));
+
+	if (rangeAttribute) {
+		body.Key[rangeAttribute] = encodeAttribute(model.get(rangeAttribute));
+	}
 
 	_.extend(body, options.dynamodb);
 
