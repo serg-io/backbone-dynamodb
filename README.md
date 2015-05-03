@@ -79,11 +79,11 @@ following options:
 * Object. If the model uses a range attribute, and the key (hash and range attributes) can be
   generated synchronously, this function can return an object containing the hash and/or range
   attributes. The type of both attributes must match the DynamoDB table definition.
-* Promise<Any value>. If the model doesn't use a range attribute, and the hash attribute **can't**
+* Promise (Any value). If the model doesn't use a range attribute, and the hash attribute **can't**
   be generated synchronously, this function can return a jQuery-style Promise, that when resolved it
   provides a value to the `done` callback. This has only been tested with promises provided by
   [underscore.deferred](https://www.npmjs.com/package/underscore.deferred).
-* Promise<Object>. If the model uses a range attribute, and the key (hash and range attributes)
+* Promise (Object). If the model uses a range attribute, and the key (hash and range attributes)
   **can't** be generated synchronously, this function can return a jQuery-style Promise, that when
   resolved it provides an Object to the `done` callback. This has only been tested with promises
   provided by [underscore.deferred](https://www.npmjs.com/package/underscore.deferred).
@@ -207,7 +207,7 @@ setting the `options.context` when calling `save( attributes, options )`, `destr
 `fetch( options )`, will make all callback functions to be called within the given context. In other
 words, the value of `this`, within all callbacks, will be the given `options.context`.
 
-##### `options.complete( modelOrCollection, response )` ####
+#### `options.complete( modelOrCollection, response )` ####
 
 Similar to the `complete` setting in [jQuery.ajax](http://api.jquery.com/jQuery.ajax/#jQuery-ajax-settings),
 the `options.complete` callback, if specified, is called after either `options.success` or `options.error`
