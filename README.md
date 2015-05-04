@@ -1,75 +1,223 @@
 backbone-dynamodb
 =================
 
-Server side Backbone.js sync implementation for DynamoDB.
+This library allows you to store Backbone models in Amazon DynamoDB. It uses
+[dynamodb-doc](https://www.npmjs.com/package/dynamodb-doc) to provide support for all the data types
+available in DynamoDB, including support for full [JSON documents](https://aws.amazon.com/blogs/aws/dynamodb-update-json-and-more/).
+These are the data types supported by this library:
+
+* Number
+* String
+* Boolean
+* Null
+* Binary data (instances of [`Buffer`](https://nodejs.org/api/buffer.html))
+* Objects (including nested objects)
+* Arrays (including arrays of objects)
+* Models (stored as objects)
+* Collections (stored as arrays)
+* `Date` instances (stored as strings)
+
 
 Installation
 ------------
-
 Execute the following command at the root of your project:
 
 	npm install backbone-dynamodb
 
-AWS Credentials
----------------
 
-You can set the AWS credentials and region using any of the following methods:
+AWS-SDK Configuration
+---------------------
+backbone-dynamodb uses the AWS-SDK. Visit [this page](http://docs.aws.amazon.com/AWSJavaScriptSDK/guide/node-configuring.html)
+for details on how to configure the AWS-SDK. You can also manually configure it using the `config`
+object. For instance:
 
-1.	Manually:
-	
-		Backbone.DynamoDB.setup('accessKeyID', 'secretAccessKey', 'awsRegion');
+	Backbone.DynamoDB.config.update({ region: 'us-east-1' });
 
-2.	Setting the following environment variables. There's no need to call the `setup()` method, it would get those
-	values automatically:
-	* `AWS_ACCESS_KEY_ID`
-	* `AWS_SECRET_ACCESS_KEY`
-	* `AWS_REGION`
 
-3.	Using an IAM Role. To use IAM Role credentials just [assign a role to the EC2](http://docs.amazonwebservices.com/AWSEC2/latest/UserGuide/UsingIAM.html#UsingIAMrolesWithAmazonEC2Instances) instance when you launch it.
-	backbone-dynamodb will automatically get the credentials from the [EC2 metadata service](http://docs.amazonwebservices.com/AWSEC2/latest/UserGuide/AESDG-chapter-instancedata.html).
-	There's no need to call the `setup()` method, it would get those values automatically, however, if you don't want
-	to use the default AWS region (`us-east-1`), you can call the `setup()` method to specify the region you want to use,
-	just set the first two arguments to `null`:
-
-		Backbone.DynamoDB.setup(null, null, 'us-west-1');
-
+-------------------
 
 
 `Backbone.DynamoDB.Model`
 -------------------------
+Backbone.DynamoDB.Model is a subclass of Backbone's Model. The following properties and methods can
+be overwritten according to your needs:
 
-### The `id` attribute
+#### `idAttribute` ####
 
-If the a `model` is new (`isNew()`), meaning that an `id` has not been assigned, an UUID string value is generated and set as the `id` when calling the `save()` method.
+Specifies the name of the primary hash key attribute in DynamoDB. The default value is `id`.
 
-### `extend(options)`
+#### `hashAttribute` ####
 
-* `idAttribute`: Specifies the name of the attribute that is the `HashKeyElement`. The default value is `id`.
-* `rangeAttribute`: Specifies the name of the attribute that is the `RangeKeyElement`. Only needed if the table has a `RangeKeyElement`.
-* `tableName`: The name of the table to use.
-* `urlRoot`: If no `tableName` is given, the value of `urlRoot` is used to determine the name of the table. First, the `'/'` at the beginning, if any, is removed, then the first character is switched to upper case. For instance: if `urlRoot` is `'/users'`, the table name is `'Users'`
+Specifies the name of the primary hash key attribute in DynamoDB. Use `hashAttribute` instead of
+`idAttribute` if the model contains a primary **range** key attribute.
+
+#### `rangeAttribute` ####
+
+Specifies the name of the primary range key attribute in DynamoDB.
+
+#### `tableName` ####
+
+The exact name of the DynamoDB table to use.
+
+#### `urlRoot` ####
+
+If no `tableName` is given, the value of `urlRoot` is used to determine the name of the table.
+First, the `'/'` at the beginning, if there is on, is removed, then the first character is switched
+to upper case. For instance: if `urlRoot` is `'/users'`, the table name would be `'Users'`
+
+#### `newKey( options )` ####
+
+Overwrite this method to dynamically generate key attribute(s). When a model is saved, this method
+is called if the model is new (if it doesn't have a hash and/or range key). The same `options` object
+used when calling `save( options )` is passed to this method. This method must return one of the
+following options:
+
+* Any value. If the model doesn't use a range attribute, and the hash attribute can be generated
+  synchronously, this function can return any value. However, its type must match the type of the
+  primary hash key attribute defined in DynamoDB. For instance: If the table uses a Number as the
+  primary hash key, this function must return an integer or a float number.
+* Object. If the model uses a range attribute, and the key (hash and range attributes) can be
+  generated synchronously, this function can return an object containing the hash and/or range
+  attributes. The type of both attributes must match the DynamoDB table definition.
+* Promise (Any value). If the model doesn't use a range attribute, and the hash attribute **can't**
+  be generated synchronously, this function can return a jQuery-style Promise, that when resolved it
+  provides a value to the `done` callback. This has only been tested with promises provided by
+  [underscore.deferred](https://www.npmjs.com/package/underscore.deferred).
+* Promise (Object). If the model uses a range attribute, and the key (hash and range attributes)
+  **can't** be generated synchronously, this function can return a jQuery-style Promise, that when
+  resolved it provides an Object to the `done` callback. This has only been tested with promises
+  provided by [underscore.deferred](https://www.npmjs.com/package/underscore.deferred).
+
+#### `toJSON( options )` ####
+
+Similar to Backbone's original `toJSON` method but performs the following additional tasks:
+
+* "Picks" or "omits" attributes if the attributes `pick` or `omit` are present in `options`.
+* Serializes all `Date` attributes into strings if `options.serializeDates` is `true`.
+* Converts attributes that are Models or Collections into objects and arrays respectively.
+
+When saving a model, using `model.save( attributes, options )`, `toJSON` is called, with the same
+`options`, to convert the model into an object before saving it. Therefore you can "pick" or "omit"
+the attributes to be saved to DynamoDB. For instance, `user.save( null, { omit: 'password' } )`
+would save all attributes present in the `user` model except for the "password" attribute.
+
+#### `serializeDate( name, date )` ####
+
+Converts a `Date` instance into string.
+
+This method is called once for each `Date` instance in the model's attributes, prior to saving the
+model to DynamoDB. The default behaviour is to call the date's `toISOString` method. Overwrite this
+method to customize how `Date` instances are serialized according to your needs, you might also need
+to overwrite `deserializeDate`, `isSerializedDate`, and/or `serializedDateExp`.
+
+The serialization process is recursive, therefore this method is also called for nested `Date` instances.
+
+#### `deserializeDate( name, string )` ####
+
+Converts a string representation of a date into an instance of `Date`.
+
+When a model is fetched from DynamoDB, this method is called once for each date attribute in the
+model's attributes to convert dates from their string representations into instances of `Date`.
+The default behaviour is to instantiate a `Date` using the provided string value. Overwrite this
+method to customize how date strings are deserialized according to your needs, you might also need
+to overwrite `serializeDate`, `isSerializedDate`, and/or `serializedDateExp`.
+
+The deserialization process is recursive, therefore this method is also called for nested date values.
+
+#### `isSerializedDate( name, string )` ####
+
+Determines if a string value is a serialized date.
+
+When a model is fetched from DynamoDB, this method is used to determine if any of the attributes are
+serialized dates. The default behaviour is to return `true` if the given string `value` is in an
+ISO8601 format, which is what the `Date.toISOString` method uses. Overwrite this method to customize how
+date strings are deserialized according to your needs, you might also need to overwrite `serializeDate`,
+`deserializeDate`, and/or `serializedDateExp`.
+
+#### `condition( name, operator, val1, val2 )` ####
+
+Generates conditions for Query or Scan requests.
+
+It uses [dynamodb-doc Condition](https://github.com/awslabs/dynamodb-document-js-sdk#condition-object)
+to generate the conditions. If `val1` or `val2` are instances of `Date`, they're serialized before
+creating the condition.
+
+#### `setAttributeType( name, Constructor )` ####
+
+Helps you define a type for a given attribute. This helps you have nested Models/Collections. It
+forces the specified attribute to be an instance of the specified `Constructor`. Sets a listener to
+check if the attribute is an instance of `Constructor` whenever the attribute is changed. If it's
+not an instance of `Constructor`, it instantiates the `Constructor` (passing the current attribute's
+value) and sets that instance as the value of such attribute.
+
+
+-------------------
+
 
 `Backbone.DynamoDB.Collection`
--------------------------
+------------------------------
+`Backbone.DynamoDB.Collection` is a subclass of Backbone's Collection. The following properties and
+methods can be overwritten according to your needs:
 
-### `extend(options)`
+#### `tableName` ####
 
-* `tableName`: The name of the table to use.
-* `url`: If no `tableName` is given, the value of `url` is used to determine the name of the table. First, the `'/'` at the beginning, if any, is removed, then the first character is switched to upper case. For instance: if `url` is `'/users'`, the table name is `'Users'`
+The exact name of the DynamoDB table to use.
 
-### `fetch(options)`
+#### `url` ####
 
-When fetching a collection you can use a DynamoDB [Query](http://docs.amazonwebservices.com/amazondynamodb/latest/developerguide/API_Query.html) or [Scan](http://docs.amazonwebservices.com/amazondynamodb/latest/developerguide/API_Scan.html) operation. To use a Query operation set the body of the DynamoDB request in `options.query`. To use a Scan operation set the body of the DynamoDB request in `options.scan`. You don't need to set the `TableName` in either one, it is automatically added to the request body.
+If no `tableName` is given, the value of `url` is used to determine the name of the table.
+First, the `'/'` at the beginning, if there is on, is removed, then the first character is
+switched to upper case. For instance: if `url` is `'/users'`, the table name would be `'Users'`
 
 
-`save`, `destroy`, `fetch`, and their callbacks
------------------------------------------------
+#### `query( dynamoDbParams, options )` ####
 
-The following applies to both `Backbone.DynamoDB.Model` and `Backbone.DynamoDB.Collection`
+Sends a "Query" request to DynamoDB to "fetch" a collection. The first argument are the parameters to
+use in the [query](http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/DynamoDB.html#query-property)
+request. The second argument are the options passed to the `fetch` method internally.
 
-### `options.dynamodb`
+#### `scan( dynamoDbParams, options )` ####
 
-When calling `save(attributes, options)`, `destroy(options)`, or `fetch(options)` the DynamoDB request body is automatically generated. You can extend the request body using the `options.dynamodb`. For instance, you can set the DynamoDB `ConsistentRead` option:
+Sends a "Scan" request to DynamoDB to "fetch" a collection. The first argument are the parameters to
+use in the [scan](http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/DynamoDB.html#scan-property)
+request. The second argument are the options passed to the `fetch` method internally.
+
+
+-------------------
+
+
+`model.save( attributes, options )`, `model.destroy( options )`, `model.fetch( options )`, and `collection.fetch( options )`
+----------------------------------------------------------------------------------------------------------------------------
+
+Similar to Backbone's original behaviour for these methods, backbone-dynamodb supports:
+
+* `success` and `error` callbacks passed in the options argument.
+* A `complete` callback that is executed after `success` or `error` callbacks have been executed.
+* Returns an [AWS Request](http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/Request.html) with
+  a jQuery-style promise interface applied to it.
+  * The callbacks attached to the promise don't receive the first argument as their callback
+    counterparts in the `options` object. For instance, the `options.success` callback passed to
+    `model.fetch` receives `(model, dynamoDbItem, options)` as arguments, but the `done` callback
+    that are attached to the returned promise only receive `(dynamoDbItem, options)` as arguments.
+
+#### `options.context` ####
+
+Similar to the `context` setting in [jQuery.ajax](http://api.jquery.com/jQuery.ajax/#jQuery-ajax-settings),
+setting the `options.context` when calling `save( attributes, options )`, `destroy( options )`, or
+`fetch( options )`, will make all callback functions to be called within the given context. In other
+words, the value of `this`, within all callbacks, will be the given `options.context`.
+
+#### `options.complete( modelOrCollection, response )` ####
+
+Similar to the `complete` setting in [jQuery.ajax](http://api.jquery.com/jQuery.ajax/#jQuery-ajax-settings),
+the `options.complete` callback, if specified, is called after either `options.success` or `options.error`
+have been called.
+
+#### `options.dynamodb` ####
+
+When calling `save( attributes, options )`, `destroy( options )`, or `fetch( options )` the DynamoDB
+request body is automatically generated. You can extend the request body using the `options.dynamodb`.
+For instance, you can set the DynamoDB `ConsistentRead` option:
 
 	model.fetch({
 		dynamodb: {
@@ -78,133 +226,16 @@ When calling `save(attributes, options)`, `destroy(options)`, or `fetch(options)
 		// Other options here
 	});
 
-### DynamoDB Response
+#### AWS Response ####
 
-The DynamoDB response is provided to the `success(model, response)`, `error(model, response)`, and `complete(model, response)` callbacks in `response.dynamodb`.
+The actual [AWS response](http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/Response.html) object
+is provided to the all callbacks as `options.awsResponse`.
 
-### `options.context`
 
-Similar to the `context` setting in [jQuery.ajax](http://api.jquery.com/jQuery.ajax/#jQuery-ajax-settings), setting the `options.context` when calling `save(attributes, options)`, `destroy(options)`, or `fetch(options)`, will make all callback functions to be called within the given context. In other words, the value of `this`, within the callbacks, will be the given `options.context`.
+-------------------
 
-#### `complete(model, response)`
-
-The `options.complete` callback, if specified, is called after either `options.success` or `options.error` has been called.
 
 Examples
 --------
 
-	var Backbone = require('backbone-dynamodb');
-	var fs = require('fs');
-
-	var Book = Backbone.DynamoDB.Model.extend({
-		idAttribute: 'isbn', // The HashKeyElement
-		urlRoot: '/books' // Table name: 'Books'
-	});
-	var Books = Backbone.DynamoDB.Collection.extend({
-		model: Book,
-		url: '/books'
-	});
-
-	var Comment = Backbone.DynamoDB.Model.extend({
-		idAttribute: 'isbn', // The HashKeyElement
-		rangeAttribute: 'date', // The RangeKeyElement
-		tableName: 'BookComments', // Table name: 'BookComments'
-		urlRoot: '/bookcomments'
-	});
-	var Comments = Backbone.DynamoDB.Collection.extend({
-		model: Comment,
-		tableName: 'BookComments', // Table name: 'BookComments'
-		url: '/bookcomments'
-	});
-
-	var book1 = new Book({
-		isbn: 9780641723445,
-		category: ['book','hardcover'],
-		title: 'The Lightning Thief',
-		author: 'Rick Riordan',
-		genre: 'fantasy',
-		inStock: true,
-		price: 12.50,
-		pages: 384,
-		publishedDate: new Date(2012, 0, 1) // Date instances are converted into ISO8601 date strings
-	});
-	book1.save({}, {
-		// The original DynamoDB response is available in response.dynamodb
-		success: function(book, response) {
-			// response.dynamodb would be something like: {ConsumedCapacityUnits: 1}
-		},
-		error: function(book, response) {},
-		complete: function(book, response) {}
-	});
-
-	var book2 = new Book({isbn: 9781857995879});
-	book2.fetch({
-		dynamodb: {
-			ConsistentRead: true
-		},
-		success: function(book, response) {
-			// Do something here
-		},
-		error: function(book, response) {
-			// response = {code: 'NotFound'} if the book was not found
-		}
-	});
-
-	var lastYearBooks = new Books();
-	// fetch all books published in 2011
-	lastYearBooks.fetch({
-		scan: { // Use a DynamoDB 'Scan' operation
-			// No need to specify TableName
-			ScanFilter: {
-				publishedDate: {
-					AttributeValueList: [
-						{S: new Date(2011, 0, 1)},
-						{S: new Date(2011, 11, 31)}
-					],
-					ComparisonOperator: 'BETWEEN'
-				}
-			},
-			Limit: 100
-		},
-		success: function(books, response) {},
-		error: function(books, response) {}
-	});
-
-	var comments = new Comments();
-	// Fetch all comments posted after January 31th for the book with ISBN: 9781857995879
-	comments.fetch({
-		query: { // Use a DynamoDB 'Query' operation
-			// No need to specify TableName
-			HashKeyValue: {N: '9781857995879'},
-			RangeKeyCondition: {
-				AttributeValueList: [{S: new Date(2012, 0, 31)}],
-				ComparisonOperator: 'GT'
-			},
-			ConsistentRead: true
-		},
-		success: function(comments, response) {},
-		error: function(comments, response) {}
-	});
-
-
-	// Use a `Buffer` instance to store binary data
-	fs.readFile(__dirname + '/cover.png', function(error, data) { // data is an instance of `Buffer`
-		new Book({
-			isbn: 9781933988177,
-			cat: ['book','paperback'],
-			name: 'Lucene in Action, Second Edition',
-			author: 'Michael McCandless',
-			sequence_i: 1,
-			genre_s: 'IT',
-			inStock: true,
-			price: 30.50,
-			pages_i: 475,
-			published_date: new Date(2012, 0, 4),
-			coverImage: data
-		}).save({}, {
-			success: function(book, response) {},
-			error: function(book, response) {},
-			complete: function(book, response) {}
-		});
-		// Note: Binary sets are also supported. Just set an attribute's value to an array of `Buffer` instances.
-	});
+Several examples on how to use backbone-dynamodb can be found in the examples.js file

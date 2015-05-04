@@ -1,23 +1,28 @@
 {
 	"name": "backbone-dynamodb",
 	"author": "Sergio Alcantara <iserg9@gmail.com> (https://github.com/serg-io)",
-	"description": "Backbone.js sync for DynamoDB",
-	"version": "0.3.0",
+	"description": "Store Backbone models in Amazon DynamoDB.",
+	"version": "1.0.0",
 	"homepage": "https://github.com/serg-io/backbone-dynamodb",
-	"keywords": ["backbone", "dynamodb", "dyndb", "aws", "amazon"],
+	"keywords": [ "backbone", "dynamodb", "backbone-dynamodb", "aws", "amazon", "dynamodb", "amazon dynamodb" ],
 	"repository": {
 		"type": "git",
 		"url": "git://github.com/serg-io/backbone-dynamodb.git"
 	},
 	"main": "backbone-dynamodb.js",
 	"dependencies": {
-		"aws-sdk": "1.4.1",
-		"underscore": "1.5.0",
-		"underscore.deferred": "0.4.0",
-		"backbone": "1.0.0",
-		"node-uuid": "1.4.0"
+		"clone": "1.0.2",
+		"aws-sdk": "2.1.26",
+		"backbone": "1.1.0",
+		"dynamodb-doc": "1.0.0",
+		"underscore": "1.8.3",
+		"underscore.deferred": "0.4.0"
 	},
 	"devDependencies": {
-		"nodeunit": "0.8.0"
+		"faker": "2.1.2",
+		"moment": "2.10.2",
+		"nodeunit": "0.9.1",
+		"request": "2.55.0",
+		"dynamodb-atomic-counter": "0.0.2"
 	}
 }
