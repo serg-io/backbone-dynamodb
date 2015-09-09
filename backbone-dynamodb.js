@@ -6,12 +6,28 @@
  */
 
 var clone = require( 'clone' ),
+	AWS = require( 'aws-sdk' ),
 	_ = require( 'underscore' ),
 	DOC = require( 'dynamodb-doc' ),
-	Backbone = require( 'backbone' ),
-	dynamo = new DOC.DynamoDB();
+	Backbone = require( 'backbone' );
 
 _.mixin( require( 'underscore.deferred' ) );
+
+/**
+ * Convenience factory function for the DynamoDB client.
+ * The first time this function is executed, it instantiates and returns
+ * a DynamoDB client. Subsequent calls return the same instance of the
+ * DynamoDB client.
+ *
+ * @return {DOC.DynamoDB} An instance of the DOC.DynamoDB client.
+ */
+var dynamo = (function() {
+	var client;
+
+	return function() {
+		return client || ( client = new DOC.DynamoDB() );
+	};
+})();
 
 /**
  * Convenience method to determine if an object is a Promise.
@@ -117,7 +133,7 @@ function putItem(model, options) {
 	wrapComplete( model, options );
 	_.extend( params, options.dynamodb );
 
-	request = dynamo.putItem( params );
+	request = dynamo().putItem( params );
 
 	request.on('complete', function (response) {
 		var ctx = options.context || model;
@@ -175,7 +191,7 @@ function deleteItem(model, options) {
 		serializeAllDates( model, params.Key );
 	}
 
-	request = dynamo.deleteItem( params );
+	request = dynamo().deleteItem( params );
 
 	request.on('complete', function (response) {
 		var ctx = options.context || model;
@@ -216,7 +232,7 @@ function getItem(model, options) {
 		serializeAllDates( model, params.Key );
 	}
 
-	request = dynamo.getItem( params );
+	request = dynamo().getItem( params );
 
 	request.on('complete', function (response) {
 		var ctx = options.context || model;
@@ -265,7 +281,7 @@ function fetchCollection(collection, options) {
 	_.extend( params, options[ fetchType ], options.dynamodb );
 
 	// Create the Query or Scan request
-	request = dynamo[ fetchType ]( params );
+	request = dynamo()[ fetchType ]( params );
 
 	request.on('complete', function (response) {
 		var dummyModel,
@@ -395,7 +411,24 @@ function _tableName() {
 	return table.charAt( 0 ).toUpperCase() + table.substr( 1 );
 }
 
-Backbone.DynamoDB = _.pick( dynamo, 'config', 'StrToBin', 'BinToStr' );
+/**
+ * Make the following properties available through `Backbone.DynamoDB`:
+ * 
+ *    * config: Same as the `AWS.config` instance.
+ *    * BinToStr: Convenience function to convert binary data into a string.
+ *    * StrToBin: Convenience function to convert a string into binary data.
+ */
+Backbone.DynamoDB = {
+	config: AWS.config,
+	BinToStr: function() {
+		var dyn = dynamo();
+		return dyn.BinToStr.apply( dyn, arguments );
+	},
+	StrToBin: function() {
+		var dyn = dynamo();
+		return dyn.StrToBin.apply( dyn, arguments );
+	}
+};
 
 Backbone.DynamoDB.Model = Backbone.Model.extend({
 	sync: sync,
@@ -592,7 +625,7 @@ Backbone.DynamoDB.Model = Backbone.Model.extend({
 			args[ 3 ] = this.serializeDate( name, args[ 3 ] );
 		}
 
-		return dynamo.Condition.apply( null, args );
+		return dynamo().Condition.apply( null, args );
 	}
 });
 

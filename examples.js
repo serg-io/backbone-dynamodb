@@ -8,7 +8,7 @@
  * IMPORTANT: Before running these examples, create the following DynamoDB table in your account.
  * 
  *      Table Name      Primary hash key      Primary range key
- *     AtomicCounters      id (number)
+ *     AtomicCounters      id (string)
  *       Contacts          id (number)
  *       MyEvents      calendarId (number)      date (string)
  */

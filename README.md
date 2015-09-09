@@ -13,8 +13,8 @@ These are the data types supported by this library:
 * Binary data (instances of [`Buffer`](https://nodejs.org/api/buffer.html))
 * Objects (including nested objects)
 * Arrays (including arrays of objects)
-* Models (stored as objects)
-* Collections (stored as arrays)
+* Backbone Models (stored as objects)
+* Backbone Collections (stored as arrays)
 * `Date` instances (stored as strings)
 
 
@@ -24,22 +24,27 @@ Execute the following command at the root of your project:
 
 	npm install backbone-dynamodb
 
+Alternatively, you can add backbone-dynamodb as a dependency to you application's package.json file.
+
 
 AWS-SDK Configuration
 ---------------------
-backbone-dynamodb uses the AWS-SDK. Visit [this page](http://docs.aws.amazon.com/AWSJavaScriptSDK/guide/node-configuring.html)
+backbone-dynamodb uses the AWS-SDK internally. Visit [this page](http://docs.aws.amazon.com/AWSJavaScriptSDK/guide/node-configuring.html)
 for details on how to configure the AWS-SDK. You can also manually configure it using the `config`
 object. For instance:
 
+	var Backbone = require( 'backbone-dynamodb' );
 	Backbone.DynamoDB.config.update({ region: 'us-east-1' });
 
+If you're calling this method within your application, it must be called before calling any of the
+methods that send requests to DynamoDB: `save`, `fetch`, and `destroy`.
 
 -------------------
 
 
 `Backbone.DynamoDB.Model`
 -------------------------
-Backbone.DynamoDB.Model is a subclass of Backbone's Model. The following properties and methods can
+`Backbone.DynamoDB.Model` is a subclass of Backbone's Model. The following properties and methods can
 be overwritten according to your needs:
 
 #### `idAttribute` ####
@@ -48,8 +53,8 @@ Specifies the name of the primary hash key attribute in DynamoDB. The default va
 
 #### `hashAttribute` ####
 
-Specifies the name of the primary hash key attribute in DynamoDB. Use `hashAttribute` instead of
-`idAttribute` if the model contains a primary **range** key attribute.
+Specifies the name of the primary hash key attribute in DynamoDB. **Important:** Use `hashAttribute`,
+instead of `idAttribute`, if the model contains a primary **range** key attribute.
 
 #### `rangeAttribute` ####
 
@@ -62,8 +67,8 @@ The exact name of the DynamoDB table to use.
 #### `urlRoot` ####
 
 If no `tableName` is given, the value of `urlRoot` is used to determine the name of the table.
-First, the `'/'` at the beginning, if there is on, is removed, then the first character is switched
-to upper case. For instance: if `urlRoot` is `'/users'`, the table name would be `'Users'`
+First, the slash `'/'` at the beginning is removed (if there one), then the first character is switched
+to upper case. For instance: if `urlRoot` is `'/users'`, the table name would be `'Users'`.
 
 #### `newKey( options )` ####
 
@@ -96,8 +101,8 @@ Similar to Backbone's original `toJSON` method but performs the following additi
 * Serializes all `Date` attributes into strings if `options.serializeDates` is `true`.
 * Converts attributes that are Models or Collections into objects and arrays respectively.
 
-When saving a model, using `model.save( attributes, options )`, `toJSON` is called, with the same
-`options`, to convert the model into an object before saving it. Therefore you can "pick" or "omit"
+When saving a model, using `model.save( attributes, options )`, the method `toJSON` is called (with the same
+`options`) to convert the model into an object before saving it. Therefore you can "pick" or "omit"
 the attributes to be saved to DynamoDB. For instance, `user.save( null, { omit: 'password' } )`
 would save all attributes present in the `user` model except for the "password" attribute.
 
@@ -118,9 +123,10 @@ Converts a string representation of a date into an instance of `Date`.
 
 When a model is fetched from DynamoDB, this method is called once for each date attribute in the
 model's attributes to convert dates from their string representations into instances of `Date`.
-The default behaviour is to instantiate a `Date` using the provided string value. Overwrite this
-method to customize how date strings are deserialized according to your needs, you might also need
-to overwrite `serializeDate`, `isSerializedDate`, and/or `serializedDateExp`.
+The default behaviour is to instantiate a `Date` using the provided string value
+(`return new Date( string );`). Overwrite this method to customize how date strings are deserialized
+according to your needs, you might also need to overwrite `serializeDate`, `isSerializedDate`, and/or
+`serializedDateExp`.
 
 The deserialization process is recursive, therefore this method is also called for nested date values.
 
@@ -166,8 +172,8 @@ The exact name of the DynamoDB table to use.
 #### `url` ####
 
 If no `tableName` is given, the value of `url` is used to determine the name of the table.
-First, the `'/'` at the beginning, if there is on, is removed, then the first character is
-switched to upper case. For instance: if `url` is `'/users'`, the table name would be `'Users'`
+First, the `'/'` at the beginning is removed (if there's one), then the first character is
+switched to upper case. For instance: if `url` is `'/users'`, the table name would be `'Users'`.
 
 
 #### `query( dynamoDbParams, options )` ####
@@ -186,26 +192,34 @@ request. The second argument are the options passed to the `fetch` method intern
 -------------------
 
 
-`model.save( attributes, options )`, `model.destroy( options )`, `model.fetch( options )`, and `collection.fetch( options )`
-----------------------------------------------------------------------------------------------------------------------------
+`save`, `destroy`, and `fetch`
+------------------------------
 
-Similar to Backbone's original behaviour for these methods, backbone-dynamodb supports:
+When calling any of these methods:
+
+* `model.save( attributes, options )`
+* `model.destroy( options )`
+* `model.fetch( options )`
+* `collection.fetch( options )`
+
+backbone-dynamodb attempts to follow Backbone's original behaviour. backbone-dynamodb supports:
 
 * `success` and `error` callbacks passed in the options argument.
 * A `complete` callback that is executed after `success` or `error` callbacks have been executed.
 * Returns an [AWS Request](http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/Request.html) with
   a jQuery-style promise interface applied to it.
   * The callbacks attached to the promise don't receive the first argument as their callback
-    counterparts in the `options` object. For instance, the `options.success` callback passed to
-    `model.fetch` receives `(model, dynamoDbItem, options)` as arguments, but the `done` callback
-    that are attached to the returned promise only receive `(dynamoDbItem, options)` as arguments.
+    counterparts in the `options` object. For instance, when calling `model.fetch( options )`,
+    the `options.success` callback receives `(model, dynamoDbItem, options)` as arguments, but the
+    `done` callbacks, that are attached to the returned promise, only receive `(dynamoDbItem, options)`
+    as arguments.
 
 #### `options.context` ####
 
 Similar to the `context` setting in [jQuery.ajax](http://api.jquery.com/jQuery.ajax/#jQuery-ajax-settings),
 setting the `options.context` when calling `save( attributes, options )`, `destroy( options )`, or
 `fetch( options )`, will make all callback functions to be called within the given context. In other
-words, the value of `this`, within all callbacks, will be the given `options.context`.
+words, the value of `this`, within all callbacks, will be the given `options.context` value.
 
 #### `options.complete( modelOrCollection, response )` ####
 
@@ -229,7 +243,8 @@ For instance, you can set the DynamoDB `ConsistentRead` option:
 #### AWS Response ####
 
 The actual [AWS response](http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/Response.html) object
-is provided to the all callbacks as `options.awsResponse`.
+is provided to the all callbacks as `options.awsResponse`, except for the `model.destroy` method.
+Callbacks used in the `model.destroy` method, receive the AWS response object as the first argument.
 
 
 -------------------

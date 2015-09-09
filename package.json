@@ -10,6 +10,9 @@
 		"url": "git://github.com/serg-io/backbone-dynamodb.git"
 	},
 	"main": "backbone-dynamodb.js",
+	"scripts": {
+		"postversion": "git push && git push --tags && npm publish"
+	},
 	"dependencies": {
 		"clone": "1.0.2",
 		"aws-sdk": "2.1.26",
@@ -23,6 +26,6 @@
 		"moment": "2.10.2",
 		"nodeunit": "0.9.1",
 		"request": "2.55.0",
-		"dynamodb-atomic-counter": "0.0.2"
+		"dynamodb-atomic-counter": "0.1.1"
 	}
 }
