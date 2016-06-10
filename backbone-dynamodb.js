@@ -345,6 +345,10 @@ function isBackboneInstance(value) {
 	return value instanceof Backbone.Model || value instanceof Backbone.Collection;
 }
 
+function isBuffer( obj ) {
+	return typeof Buffer === 'function' && typeof Buffer.isBuffer === 'function' && Buffer.isBuffer( obj );
+}
+
 function isScalar(value) {
 	var t = typeof value;
 	// TODO: Add a check like the following one when adding support for browsers
@@ -411,6 +415,15 @@ function _tableName() {
 	return table.charAt( 0 ).toUpperCase() + table.substr( 1 );
 }
 
+function binToStr() {
+	var dyn = dynamo();
+	return dyn.BinToStr.apply( dyn, arguments );
+}
+
+function strToBin() {
+	var dyn = dynamo();
+	return dyn.StrToBin.apply( dyn, arguments );
+}
 /**
  * Make the following properties available through `Backbone.DynamoDB`:
  * 
@@ -420,14 +433,8 @@ function _tableName() {
  */
 Backbone.DynamoDB = {
 	config: AWS.config,
-	BinToStr: function() {
-		var dyn = dynamo();
-		return dyn.BinToStr.apply( dyn, arguments );
-	},
-	StrToBin: function() {
-		var dyn = dynamo();
-		return dyn.StrToBin.apply( dyn, arguments );
-	}
+	binToStr: binToStr,
+	strToBin: strToBin
 };
 
 Backbone.DynamoDB.Model = Backbone.Model.extend({
@@ -633,6 +640,35 @@ Backbone.DynamoDB.Collection = Backbone.Collection.extend({
 	sync: sync,
 	_tableName: _tableName,
 	model: Backbone.DynamoDB.Model,
+	modelId: function( attributes ) {
+		var hashName = this.model.prototype.idAttribute,
+			rangeName = this.model.prototype.rangeAttribute,
+			attrs = _.pick( attributes, hashName, rangeName );
+
+		attrs = _.mapObject(attrs, function( value, name ) {
+			if ( _.isDate( value ) ) {
+				return new this.model().serializeDate( name, value );
+			} else if ( isBuffer( value ) ) {
+				// TODO: When adding browser support: Also execute `binToStr` if `value` is an `Uint8Array`.
+				return binToStr( value );
+			}
+
+			return value;
+		}, this);
+
+		if ( !rangeName ) {
+			return attrs[ hashName ];
+		}
+
+		( attrs[ hashName ] === 0 ) && ( attrs[ hashName ] = '0' );
+		( attrs[ rangeName ] === 0 ) && ( attrs[ rangeName ] = '0' );
+
+		if ( !attrs[ hashName ] || !attrs[ rangeName ] ) {
+			return undefined;
+		}
+
+		return _.values( attrs ).join( '' );
+	},
 	/**
 	 * Sends a "Query" request to DynamoDB to "fetch" a collection.
 	 *

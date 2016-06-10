@@ -151,6 +151,22 @@ exports[ 'Manually assigning an ID.' ] = function (test) {
 	});
 };
 
+exports[ 'Testing that IDs don\'t collide when adding models with a range attribute to a collection.' ] = function (test) {
+	var count = EVENTS_DATA.length,
+		events = new Events( EVENTS_DATA );
+
+	test.expect( 1 );
+
+	test.equal(
+		count,
+		events.length,
+		'Expected the collection to have ' + count + ' models but it has ' + events.length + '. ' +
+		'This is possibly due to collisions with the model IDs.'
+	);
+
+	test.done();
+};
+
 exports[ 'Saving models with a number as hash key and a date as range key.' ] = function (test) {
 	var events = new Events( EVENTS_DATA ),
 		done = _.after( events.length, function() { test.done(); } );
