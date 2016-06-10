@@ -47,7 +47,7 @@ var Contact = Backbone.DynamoDB.Model.extend({
 	 */
 	newKey: function(options) {
 		return atomicCounter.increment( this._tableName() );
-	},
+	}
 });
 var Contacts = Backbone.DynamoDB.Collection.extend({
 	/**
@@ -294,6 +294,30 @@ exports[ 'Query using KeyConditionExpression.' ] = function (test) {
 	});
 };
 
+exports[ 'Query using queryWhere.' ] = function (test) {
+	var futureEvents = new Events(),
+		monday = moment().startOf( 'week' ).add( 1, 'days' ).toDate(),
+		sunday = moment().endOf( 'week' ).add( 1, 'days' ).toDate(),
+		filter = {
+			calendarId: 2,
+			'date BETWEEN': [ monday, sunday ]
+		};
+
+	test.expect( 1 );
+
+	futureEvents.queryWhere( filter ).done(function (dynamoDbItems, options) {
+		var expected = _.filter(EVENTS_DATA, function (event) {
+			return event.calendarId === 2 && moment( event.date ).isBetween( monday, sunday );
+		});
+
+		test.equal( expected.length, futureEvents.length, 'Wrong number of models. Expected: ' + expected.length + '. Actual: ' + futureEvents.length + '.' );
+	}).fail(function (response, options) {
+		test.ok( false, 'An error occurred during the Query request: ' + JSON.stringify( response.error ) + '.' );
+	}).always(function () {
+		test.done();
+	});
+};
+
 exports[ 'Scan using ScanFilter.' ] = function (test) {
 	var contacts = new Contacts(),
 		dummyContact = new Contact(),
@@ -308,6 +332,25 @@ exports[ 'Scan using ScanFilter.' ] = function (test) {
 	test.expect( 1 );
 
 	contacts.scan( dynamoDbParams ).done(function (dynamoDbItems, options) {
+		var expected = _.where( CONTACTS_DATA, { isMale: false } );
+
+		test.equal( expected.length, contacts.length, 'Wrong number of models. Expected: ' + expected.length + '. Actual: ' + contacts.length + '.' );
+	}).fail(function (response, options) {
+		test.ok( false, 'An error occurred during the Scan request: ' + JSON.stringify( response.error ) + '.' );
+	}).always(function () {
+		test.done();
+	});
+};
+
+exports[ 'Query using scanWhere.' ] = function (test) {
+	var contacts = new Contacts(),
+		filter = {
+			isMale: false
+		};
+
+	test.expect( 1 );
+
+	contacts.scanWhere( filter ).done(function (dynamoDbItems, options) {
 		var expected = _.where( CONTACTS_DATA, { isMale: false } );
 
 		test.equal( expected.length, contacts.length, 'Wrong number of models. Expected: ' + expected.length + '. Actual: ' + contacts.length + '.' );
