@@ -632,6 +632,65 @@ Backbone.DynamoDB.Model = Backbone.Model.extend({
 Backbone.DynamoDB.Collection = Backbone.Collection.extend({
 	sync: sync,
 	_tableName: _tableName,
+	_expressionParameters: function( expressionName, filter, indexName ) {
+		var params,
+			i = 0,
+			conditions = [],
+			names = {},
+			values = {},
+			dummyModel = new this.model();
+
+		_.each(filter, function( value, expr ) {
+			i++;
+			expr = expr.split( ' ' );
+
+			var name = expr[ 0 ],
+				comparator = expr[ 1 ] || '=';
+
+			if ( _.isDate( value ) ) {
+			   value = dummyModel.serializeDate( name, value );
+			} else if ( _.isArray( value ) ) {
+				value = _.map(value, function( val ) {
+					if ( _.isDate( val ) ) {
+						return dummyModel.serializeDate( name, val );
+					}
+
+					return val;
+				});
+			}
+
+			if ( /begins_with/i.test( comparator ) ) {
+				conditions.push( 'begins_with( #name' + i + ', :value' + i + ' )' );
+			} else if ( /BETWEEN/i.test( comparator ) ) {
+				conditions.push( '#name' + i + ' BETWEEN :value' + i + ' AND :value' + ( i + 1 ));
+			} else {
+				conditions.push( '#name' + i + ' ' + comparator + ' :value' + i );
+			}
+
+			names[ '#name' + i ] = name;
+			if ( /BETWEEN/i.test( comparator ) ) {
+				// TODO: Test BETWEEN comparators
+				values[ ':value' + i ] = value[ 0 ];
+				i++;
+				values[ ':value' + i ] = value[ 1 ];
+			} else {
+				values[ ':value' + i ] = value;
+			}
+		}, this);
+
+		params = {
+			ExpressionAttributeNames: names,
+			ExpressionAttributeValues: values
+		};
+
+		params[ expressionName ] = conditions.join( ' AND ' );
+
+		if ( indexName ) {
+			params[ IndexName ] = indexName;
+		}
+
+		return params;
+	},
 	model: Backbone.DynamoDB.Model,
 	/**
 	 * Sends a "Query" request to DynamoDB to "fetch" a collection.
@@ -644,6 +703,18 @@ Backbone.DynamoDB.Collection = Backbone.Collection.extend({
 		_.extend( _options, options );
 		return this.fetch( _options );
 	},
+	queryWhere: function ( filter, indexName, options ) {
+		var params;
+
+		if ( !_.isString( indexName ) ) {
+			options = indexName;
+			indexName = undefined;
+		}
+
+		params = this._expressionParameters( 'KeyConditionExpression', filter, indexName );
+
+		return this.query( params, options );
+	},
 	/**
 	 * Sends a "Scan" request to DynamoDB to "fetch" a collection.
 	 *
@@ -654,6 +725,18 @@ Backbone.DynamoDB.Collection = Backbone.Collection.extend({
 		var _options = { scan: dynamoDbParams };
 		_.extend( _options, options );
 		return this.fetch( _options );
+	},
+	scanWhere: function ( filter, indexName, options ) {
+		var params;
+
+		if ( !_.isString( indexName ) ) {
+			options = indexName;
+			indexName = undefined;
+		}
+
+		params = this._expressionParameters( 'FilterExpression', filter, indexName );
+
+		return this.scan( params, options );
 	}
 });
 
