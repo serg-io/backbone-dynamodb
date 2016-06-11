@@ -30,10 +30,16 @@
     "underscore.deferred": "0.4.0"
   },
   "devDependencies": {
+    "dynamodb-atomic-counter": "0.1.1",
     "faker": "3.1.0",
+    "grunt": "1.0.1",
+    "grunt-cli": "1.2.0",
+    "grunt-contrib-jshint": "1.0.0",
+    "grunt-contrib-watch": "1.0.0",
+    "grunt-jscs": "3.0.0",
+    "load-grunt-tasks": "3.5.0",
     "moment": "2.13.0",
     "nodeunit": "0.9.1",
-    "request": "2.72.0",
-    "dynamodb-atomic-counter": "0.1.1"
+    "request": "2.72.0"
   }
 }
