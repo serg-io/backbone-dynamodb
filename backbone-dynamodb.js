@@ -1,7 +1,7 @@
 /**
  * backbone-dynamodb - (c) 2015 Sergio Alcantara
  * Uses Amazon DynamoDB to store Backbone models.
- * 
+ *
  * @author Sergio Alcantara
  */
 

@@ -1,0 +1,16 @@
+{
+	"bitwise": true,
+	"curly": true,
+	"eqeqeq": true,
+	"forin": true,
+	"freeze": true,
+	"latedef": true,
+	"noarg": true,
+	"nonbsp": true,
+	"undef": true,
+	"unused": true,
+	"eqnull": true,
+	"browser": true,
+	"node": true,
+	"-W030": true
+}
