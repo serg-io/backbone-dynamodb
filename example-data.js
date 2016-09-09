@@ -64,7 +64,7 @@ exports.contacts = function() {
 				firstName: faker.name.firstName(),
 				lastName: faker.name.lastName(),
 				dateOfBirth: faker.date.past(),
-				isMale: !!faker.random.number(),
+				isMale: faker.random.boolean(),
 				addresses:[{
 					type: 'home',
 					line1: faker.address.streetAddress(),
@@ -82,11 +82,11 @@ exports.contacts = function() {
 				}]
 			};
 
-		if ( faker.random.number() ) {
+		if ( faker.random.boolean() ) {
 			contact.addresses[ 0 ].line2 = faker.address.secondaryAddress();
 		}
 
-		if ( faker.random.number() ) {
+		if ( faker.random.boolean() ) {
 			contact.addresses.push({
 				type: 'work',
 				line1: faker.address.streetAddress(),
@@ -95,35 +95,35 @@ exports.contacts = function() {
 				zip: faker.address.zipCode()
 			});
 
-			if ( faker.random.number() ) {
+			if ( faker.random.boolean() ) {
 				contact.addresses[ 1 ].line2 = faker.address.secondaryAddress();
 			}
 		}
 
-		if ( faker.random.number() ) {
+		if ( faker.random.boolean() ) {
 			contact.phones.push({
 				type: 'work',
 				number: faker.phone.phoneNumberFormat()
 			});
 		}
 
-		if ( faker.random.number() ) {
+		if ( faker.random.boolean() ) {
 			contact.emails.push({
 				type: 'work',
 				address: faker.internet.email()
 			});
 		}
 
-		if ( faker.random.number() ) {
+		if ( faker.random.boolean() ) {
 			contact.note = {
 				lastUpdatedAt: faker.date.past(),
 				note: faker.lorem.sentences()
 			};
-		} else if ( faker.random.number() ) {
+		} else if ( faker.random.boolean() ) {
 			contact.note = null;
 		}
 
-		if ( faker.random.number() ) {
+		if ( faker.random.boolean() ) {
 			deferred = new _.Deferred();
 			promises.push( deferred.promise() );
 

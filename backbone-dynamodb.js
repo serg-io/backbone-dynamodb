@@ -30,6 +30,24 @@ var dynamo = (function() {
 })();
 
 /**
+ * Make the `AWS.config` available through `Backbone.DynamoDB.config`.
+ */
+Backbone.DynamoDB = {
+	config: AWS.config
+};
+
+/**
+ * Add the following functions of the DynamoDB document client to `Backbone.DynamoDB`:
+ * `BinToStr`, `Condition`, `Set`, and `StrToBin`.
+ */
+_.each([ 'BinToStr', 'Condition', 'Set', 'StrToBin' ], function( name ) {
+	Backbone.DynamoDB[ name ] = function() {
+		var dyn = dynamo();
+		return dyn[ name ].apply( dyn, arguments );
+	};
+});
+
+/**
  * Convenience method to determine if an object is a Promise.
  *
  * @param {Object} promise
@@ -415,27 +433,6 @@ function _tableName() {
 	return table.charAt( 0 ).toUpperCase() + table.substr( 1 );
 }
 
-function binToStr() {
-	var dyn = dynamo();
-	return dyn.BinToStr.apply( dyn, arguments );
-}
-
-function strToBin() {
-	var dyn = dynamo();
-	return dyn.StrToBin.apply( dyn, arguments );
-}
-/**
- * Make the following properties available through `Backbone.DynamoDB`:
- * 
- *    * config: Same as the `AWS.config` instance.
- *    * BinToStr: Convenience function to convert binary data into a string.
- *    * StrToBin: Convenience function to convert a string into binary data.
- */
-Backbone.DynamoDB = {
-	config: AWS.config,
-	binToStr: binToStr,
-	strToBin: strToBin
-};
 
 Backbone.DynamoDB.Model = Backbone.Model.extend({
 	sync: sync,
@@ -552,6 +549,193 @@ Backbone.DynamoDB.Model = Backbone.Model.extend({
 		});
 
 		return json;
+	},
+	/**
+	 * Updates the values of the specified attributes in the database. It sends an [UpdateItem]
+	 * (http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_UpdateItem.html) request
+	 * to DynamoDB to modify the attributes specified in `options`.
+	 *
+	 * The _UpdateItem_ request uses the _UpdateExpression_ parameter to perform the changes.
+	 * The _UpdateExpression_ is built using the given `set`, `add`, `delete`, and `remove`
+	 * attributes in `options`.
+	 *
+	 * It returns an instance of `AWS.Request` wrapped with a promise interface. If the
+	 * _UpdateItem_ request was successful, the callbacks receive `( model, attributes, options )`
+	 * as arguments, where `attributes` are the updated attributes (_UPDATED_NEW_). If the
+	 * request failed, the callbacks receive `( model, response, options )` as arguments, where
+	 * `response` is an instance of `AWS.Response`.
+	 *
+	 * @method updateItem
+	 * @param {Object} options An options object.
+	 * @param {Object} [options.set] The attributes to SET. If a given attribute already exists in
+	 *     the database, its value will be replaced with the one given in `options.set`.
+	 * @param {Object} [options.add] The values given in this object will be added to the
+	 *     corresponding existing attributes in the database. All values in this object must be a
+	 *     number, binary set (`BS`), number set (`NS`), or string set (`SS`). If the value is a
+	 *     number, it's added to, or subtracted from (if it's a negative number), the current
+	 *     value in the database (or 0 if the attribute doesn't exist). If the value is a set, all
+	 *     values in the set are appended to the current set in the database. The type of values
+	 *     given here must match the type of attribute in the database. For instance, DynamoDB
+	 *     will return an error response if one of the values in `options.add` is a number set
+	 *     (`BS`) but the corresponding attribute in the database is a string set (`SS`).
+	 * @param {Object} [options.delete]  The "set" values given in this object will be deleted from
+	 *     the existing set/attribute in the database. All values in this object must be a set
+	 *     (binary, number, or string). If deleting the values from a given set/attribute in the
+	 *     database results in an empty set, DynamoDB removes that attribute from the item and
+	 *     the attribute is also unset from the model.
+	 * @param {String|Array<String>} [options.remove] The attributes specified here are completely
+	 *     removed from the item in the database. Use a string to remove a single attribute or an
+	 *     array of strings to remove multiple attributes.
+	 * @param {Any} [options.context] The context to use as `this` in all callbacks.
+	 * @param {Function} [options.success] Success callback.
+	 * @param {Function} [options.error] Error callback.
+	 * @param {Function} [options.complete] Complete callback.
+	 * @return Promise<AWS.Request> Returns an instance of the `AWS.Request` wrapped with a
+	 *     `Promise` interface.
+	 */
+	updateItem: function( options ) {
+		var names = {},
+			values = {},
+			expression = [],
+			params = {
+				// TODO: Serialize Date values in the item key
+				Key: key.call( this ),
+				ReturnValues: 'UPDATED_NEW',
+				TableName: this._tableName()
+			},
+			deferred = new _.Deferred(),
+			request, set, add, del, remove;
+
+		// If `options.remove` is a string, convert it into an array.
+		if ( _.isString( options.remove ) ) {
+			options.remove = [ options.remove ];
+		}
+
+		// Create an array of SET actions.
+		set = _.map( options.set, function( value, name ) {
+			var n = _.uniqueId( '#name' ),
+				v = _.uniqueId( ':value' );
+
+			names[ n ] = name;
+			// TODO: Serialize Date values
+			values[ v ] = value;
+
+			return n + ' = ' + v;
+		});
+
+		// Create an array of ADD actions.
+		add = _.map( options.add, function( value, name ) {
+			var n = _.uniqueId( '#name' ),
+				v = _.uniqueId( ':value' );
+
+			names[ n ] = name;
+			// TODO: Serialize Date values if value is a string Set
+			values[ v ] = value;
+
+			return n + ' ' + v;
+		});
+
+		// Create an array of DELETE actions.
+		del = _.map( options.delete, function( value, name ) {
+			var n = _.uniqueId( '#name' ),
+				v = _.uniqueId( ':value' );
+
+			names[ n ] = name;
+			// TODO: Serialize Date values
+			values[ v ] = value;
+
+			return n + ' ' + v;
+		});
+
+		// Create an array of REMOVE actions.
+		remove = _.map( options.remove, function( name ) {
+			var n = _.uniqueId( '#name' );
+
+			names[ n ] = name;
+
+			// If nestedPath is falsy, no nested path is used in the expression.
+			return n;
+		});
+
+		/**
+		 * Add the SET, ADD, DELETE, and REMOVE expression if their corresponding arrays of
+		 * actions are not empty.
+		 */
+		if ( set.length ) {
+			expression.push( 'SET ' + set.join( ', ' ) );
+		}
+		if ( add.length ) {
+			expression.push( 'ADD ' + add.join( ', ' ) );
+		}
+		if ( del.length ) {
+			expression.push( 'DELETE ' + del.join( ', ' ) );
+		}
+		if ( remove.length ) {
+			expression.push( 'REMOVE ' + remove.join( ', ' ) );
+		}
+
+		// Add the expression parameters.
+		params.ExpressionAttributeNames = names;
+		if ( !_.isEmpty( values ) ) {
+			params.ExpressionAttributeValues = values;
+		}
+		params.UpdateExpression = expression.join( ' ' );
+
+		// Add the given `options.dynamodb` parameters.
+		_.extend( params, options.dynamodb );
+
+		// Create the UpdateItem request.
+		request = dynamo().updateItem( params );
+
+		// Add a "complete" event listener to the `request`.
+		request.on( 'complete', _.bind( function( response ) {
+			var ctx = options.context || this,
+				attributes;
+
+			// Reject the `deferred` if it's an error response.
+			if ( response.error ) {
+				return deferred.rejectWith( ctx, [ this, response, options ]);
+			}
+
+			options.awsResponse = response;
+			attributes = response.data.Attributes || {};
+
+			// TODO: Deserialize all date values
+
+			// Set all attributes included in the response.
+			// TODO: Don't set the attributes when using `model.save( attrs, { patch: true })`
+			if ( !_.isEmpty( attributes ) ) {
+				this.set( attributes );
+			}
+
+			/**
+			 * For each attribute in `options.delete`, unset the attribute if it's not present
+			 * in the response. DynamoDB removes the attribute from the item when an UpdateItem
+			 * request deletes all the values in the set/attribute.
+			 */
+			_.each( options.delete, function( value, name ) {
+				if ( !attributes[ name ] ) {
+					this.unset( name, options );
+				}
+			}, this );
+
+			// Unset the attributes listed in the `options.remove` array.
+			_.each( options.remove, function( name ) {
+				this.unset( name, options );
+			}, this );
+
+			// Resolve the `deferred`.
+			deferred.resolveWith( ctx, [ this, attributes, options ]);
+		}, this ));
+
+		// Send the request.
+		request.send();
+
+		// Support callbacks given in `options`.
+		deferred.done( options.success ).fail( options.error ).always( options.complete );
+
+		// Return the `AWS.Request` instance wrapped with a promise interface.
+		return deferred.promise( request );
 	},
 	/**
 	 * Converts a `Date` instance into string.
