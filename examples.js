@@ -13,7 +13,8 @@
  *       MyEvents      calendarId (number)      date (string)
  */
 
-var _ = require( 'underscore' ),
+var faker = require( 'faker' ),
+	_ = require( 'underscore' ),
 	moment = require( 'moment' ),
 	data = require( './example-data' ),
 	Backbone = require( './backbone-dynamodb' ),
@@ -89,6 +90,9 @@ var Events = Backbone.DynamoDB.Collection.extend({
 });
 
 
+var allContacts = new Contacts();
+
+
 exports[ 'Auto-increment IDs using dynamodb-atomic-counter.' ] = function (test) {
 	var count = 19,
 		/**
@@ -118,14 +122,14 @@ exports[ 'Auto-increment IDs using dynamodb-atomic-counter.' ] = function (test)
 			contact.save().done(function (changedAttributes, options) {
 				// changedAttributes would be something like: { id: 1 }
 				test.ok( true );
+
+				allContacts.add( contact );
 			}).fail(function (response, options) {
 				test.ok( false, 'Failed to save model to DynamoDB: ' + JSON.stringify( response.error ) + '.' );
 			}).always( done );
 		});
 	});
 };
-
-var lastContactId;
 
 exports[ 'Manually assigning an ID.' ] = function (test) {
 	var attributes = _.last( CONTACTS_DATA ),
@@ -143,7 +147,8 @@ exports[ 'Manually assigning an ID.' ] = function (test) {
 	}).done(function (changedAttributes, options) {
 		// No id attribute was generated during the saving process so changedAttributes would be an empty object {}
 		test.ok( true );
-		lastContactId = contact.id;
+
+		allContacts.add( contact );
 	}).fail(function (response, options) {
 		test.ok( false, 'An error has occurred: ' + JSON.stringify( response.error ) + '.' );
 	}).always(function () {
@@ -183,7 +188,7 @@ exports[ 'Saving models with a number as hash key and a date as range key.' ] = 
 };
 
 exports[ 'Fetch a single model using ConsistentRead.' ] = function (test) {
-	var contact = new Contact({ id: lastContactId }),
+	var contact = allContacts.last(),
 		/**
 		 * Use ConsistentRead.
 		 * All attributes inside `options.dynamodb` are added to the actual DynamoDB request parameters.
@@ -342,7 +347,7 @@ exports[ 'Scan using ScanFilter.' ] = function (test) {
 	});
 };
 
-exports[ 'Query using scanWhere.' ] = function (test) {
+exports[ 'Scan using scanWhere.' ] = function (test) {
 	var contacts = new Contacts(),
 		filter = {
 			isMale: false
@@ -387,7 +392,7 @@ exports[ 'Scan using FilterExpression.' ] = function (test) {
 };
 
 exports[ 'Delete a single model.' ] = function (test) {
-	var contact = new Contact({ id: lastContactId });
+	var contact = allContacts.last();
 
 	test.expect( 1 );
 
@@ -453,6 +458,170 @@ exports[ 'Fetching a model with a nested collection.' ] = function (test) {
 	}).fail(function (response, options) {
 		test.ok( false, 'Error occurred when fetching model: ' + JSON.stringify( response.error ) + '.' );
 	}).always(function () {
+		test.done();
+	});
+};
+
+exports[ 'SET attributes using updateItem.' ] = function( test ) {
+	var contact = allContacts.findWhere({ isMale: false }),
+		lastNameBefore = contact.get( 'lastName' ),
+		websitesArray = [
+			faker.internet.url(),
+			faker.internet.url()
+		];
+
+	test.expect( 5 );
+
+	/**
+	 * "Set" the attributes: `isMarried`, `numberOfPets`, `lastName`, and `websites`.
+	 * Note that `websites` is a "string set".
+	 */
+	contact.updateItem({
+		set: {
+			isMarried: true,
+			numberOfPets: 2,
+			lastName: faker.name.lastName(),
+			websites: Backbone.DynamoDB.Set( websitesArray, 'S' )
+		}
+	}).done(function() {
+		var hasWebsite = contact.has( 'websites' ),
+			// `websites` is a string set. It's converted into an array here.
+			websiteCount = hasWebsite ? contact.get( 'websites' ).toArray().length : 0;
+
+		test.ok( hasWebsite, 'Failed to set websites.' );
+		test.strictEqual( contact.get( 'numberOfPets' ), 2, '"numberOfPets" is not 2.' );
+		test.strictEqual( contact.get( 'isMarried' ), true, '"isMarried" is not true.' );
+		test.strictEqual( websiteCount, websitesArray.length, 'Invalid number of "websites".' );
+		test.notStrictEqual( contact.get( 'lastName' ), lastNameBefore, 'Last name is the same.' );
+	}).fail(function( model, response, options ) {
+		test.ok( false, 'Error occurred: ' + JSON.stringify( response.error ) + '.' );
+	}).always(function() {
+		test.done();
+	});
+};
+
+exports[ 'ADD attributes using updateItem.' ] = function( test ) {
+	var contact = allContacts.findWhere({ isMale: false }),
+		websitesArray = [ faker.internet.url() ];
+
+	test.expect( 2 );
+
+	/**
+	 * "Add" 1 to the existing `numberOfPets` and add a new string value to the existing
+	 * `websites` string set.
+	 */
+	contact.updateItem({
+		add: {
+			numberOfPets: 1,
+			websites: Backbone.DynamoDB.Set( websitesArray, 'S' )
+		}
+	}).done(function() {
+		var hasWebsite = contact.has( 'websites' ),
+			// `websites` is a string set. It's converted into an array here.
+			websiteCount = hasWebsite ? contact.get( 'websites' ).toArray().length : 0;
+
+		test.strictEqual( websiteCount, 3, 'Number of "websites" is not 3.' );
+		test.strictEqual( contact.get( 'numberOfPets' ), 3, '"numberOfPets" is not 3.' );
+	}).fail(function( model, response, options ) {
+		test.ok( false, 'Error occurred: ' + JSON.stringify( response.error ) + '.' );
+	}).always(function() {
+		test.done();
+	});
+};
+
+exports[
+	'DELETE a value from a string set and subtract from a number attribute using updateItem.'
+] = function( test ) {
+	var contact = allContacts.findWhere({ isMale: false }),
+		// `websites` is a string set. It's converted into an array here.
+		websitesArray = contact.get( 'websites' ).toArray().slice( 0, 1 );
+
+	test.expect( 3 );
+
+	/**
+	 * Subtract 2 from `numberOfPets` and delete a value from the `websites` string set.
+	 */
+	contact.updateItem({
+		add: {
+			numberOfPets: -2
+		},
+		delete: {
+			websites: Backbone.DynamoDB.Set( websitesArray, 'S' )
+		}
+	}).done(function() {
+		var hasWebsite = contact.has( 'websites' ),
+			// `websites` is a string set. It's converted into an array here.
+			websiteCount = hasWebsite ? contact.get( 'websites' ).toArray().length : 0;
+
+		test.ok( hasWebsite, 'Doesn\'t have "websites".' );
+		test.strictEqual( websiteCount, 2, 'Number of "websites" is not 2.' );
+		test.strictEqual( contact.get( 'numberOfPets' ), 1, '"numberOfPets" is not 1.' );
+	}).fail(function( model, response, options ) {
+		test.ok( false, 'Error occurred: ' + JSON.stringify( response.error ) + '.' );
+	}).always(function() {
+		test.done();
+	});
+};
+
+exports[ 'DELETE "all" values from a StringSet using updateItem.' ] = function( test ) {
+	var contact = allContacts.findWhere({ isMale: false }),
+		// `websites` is a string set. It's converted into an array here.
+		websites = contact.get( 'websites' ).toArray();
+
+	test.expect( 1 );
+
+	/**
+	 * Delete all values from the `websites` string set. If successful, the attribute is
+	 * removed (unset) from the model.
+	 */
+	contact.updateItem({
+		delete: {
+			websites: Backbone.DynamoDB.Set( websites, 'S' )
+		}
+	}).done(function() {
+		test.ok( !contact.has( 'websites' ), 'The "websites" attribute was not removed.' );
+	}).fail(function( model, response, options ) {
+		test.ok( false, 'Error occurred: ' + JSON.stringify( response.error ) + '.' );
+	}).always(function() {
+		test.done();
+	});
+};
+
+exports[ 'REMOVE a single attribute using updateItem.' ] = function( test ) {
+	var contact = allContacts.find(function( model ) {
+			return model.has( 'avatar' );
+		});
+
+	test.expect( 1 );
+
+	/**
+	 * "Remove" the `avatar` attribute.
+	 */
+	contact.updateItem({ remove: 'avatar' }).done(function() {
+		test.ok( !contact.has( 'avatar' ), 'The "avatar" attribute was not removed.' );
+	}).fail(function( model, response, options ) {
+		test.ok( false, 'Error occurred: ' + JSON.stringify( response.error ) + '.' );
+	}).always(function() {
+		test.done();
+	});
+};
+
+exports[ 'REMOVE multiple attributes using updateItem.' ] = function( test ) {
+	var contact = allContacts.findWhere({ isMale: false });
+
+	test.expect( 2 );
+
+	/**
+	 * "Remove" the `dateOfBirth` and `numberOfPets` attributes.
+	 */
+	contact.updateItem({
+		remove: [ 'dateOfBirth', 'numberOfPets' ]
+	}).done(function() {
+		test.ok( !contact.has( 'dateOfBirth' ), 'The "dateOfBirth" attribute was not removed.' );
+		test.ok( !contact.has( 'numberOfPets' ), 'The "numberOfPets" attribute was not removed.' );
+	}).fail(function( model, response, options ) {
+		test.ok( false, 'Error occurred: ' + JSON.stringify( response.error ) + '.' );
+	}).always(function() {
 		test.done();
 	});
 };
